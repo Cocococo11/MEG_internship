@@ -1,11 +1,19 @@
 import numpy as np
 
 from pyacq.core import Node, register_node_type
+from pyacq.core.stream import stream, InputStream
 from pyqtgraph.Qt import QtCore, QtGui
 
 import struct
 import time
 from pyqtgraph.util.mutex import Mutex
+
+try:
+    import FieldTrip
+    HAVE_FIELDTRIP = True
+except ImportError:
+    HAVE_FIELDTRIP = False
+    
 import FieldTrip
 from mne import pick_channels
 
@@ -20,6 +28,7 @@ _dtype_trigger = [('pos', 'int64'),
 class MEGBuffer_Thread(QtCore.QThread):
 
     def __init__(self, ftc, outputs, parent=None,ch_names=None):
+        assert HAVE_FIELDTRIP, "MEGBuffer node depends on the `FieldTrip` package, but it could not be imported. Please make sure to download FieldTrip.py and store it next to this file "
         print('Thread initialized')
         QtCore.QThread.__init__(self)
         self.lock = Mutex()
@@ -63,34 +72,34 @@ class MEGBuffer_Thread(QtCore.QThread):
             #TODO 
             # We should not fetch data when globalIndex = lastIndex
             # and so in the case we sleep, we should also skip these 2 next lines
-            print('On recupere les donnees et evenements')
+            #print('On recupere les donnees et evenements')
             data = self.ftc.getData([lastIndex,globalIndex-1])
             events = self.ftc.getEvents([lastIndex,globalIndex-1])
-            print('EVENEMENT : ', events)
-            nbEvents = 0
-            print('Nb evenements totaux : ', nbEvents)
-            if events is not None :
-                nbEvents+=nbEvents
+            #print('EVENEMENT : ', events)
+            # nbEvents = 0
+            # print('Nb evenements totaux : ', nbEvents)
+            # if events is not None :
+            #     nbEvents+=nbEvents
             
             
             #Saving the data in a file
-            dataNumpy = np.asarray(data)
-            #print('Data numpy saved : ',dataNumpy)
-            np.savetxt('npfile.csv', dataNumpy, delimiter=',')
+            # dataNumpy = np.asarray(data)
+            # #print('Data numpy saved : ',dataNumpy)
+            # np.savetxt('npfile.csv', dataNumpy, delimiter=',')
             
             #We choose to extract only the data from the left motor hemisphere
             #print('ch_names we are gonna get the data of',self.ch_names)
             #extracted_data = self.extract_right_channels(data, self.ch_names)
             
             #if (D.shape[0] != 24 ):
-            print("On recupere depuis %d canaux un bloc de %d  (verification bloc %d )" %(data.shape[1], data.shape[0], globalIndex-lastIndex))
+            # print("On recupere depuis %d canaux un bloc de %d  (verification bloc %d )" %(data.shape[1], data.shape[0], globalIndex-lastIndex))
             #print("On envoie sur la sortie uniquement %d channels de donnees " %(extracted_data.shape[1]))
             
             #self.outputs['signals'].send(data.astype('float32'))
             #print('We are sending interesting data composed by %d channels' %(extracted_data))
             #self.outputs['signals'].send(extracted_data.astype('float32'))
             self.outputs['signals'].send(data.astype('float32'))
-            #self.outputs['triggers'].send(events)
+            self.outputs['triggers'].send(events)
             
             lastIndex = globalIndex
 
@@ -174,28 +183,38 @@ if __name__ == "__main__":
     app = QtGui.QApplication([])
     
     MEGB =  MEGBuffer()
+    inputStream = InputStream()
     MEGB.configure()
     
-    MEGB.outputs['signals'].configure( transfermode='plaindata')
-    MEGB.outputs['triggers'].configure( transfermode='plaindata')
+    MEGB.outputs['signals'].configure( transfermode='sharedmem')
+    #MEGB.outputs['triggers'].configure( transfermode='plaindata')
     MEGB.initialize()
     
-    osc = QOscilloscope()
-    osc.configure(with_user_dialog=True)
-    osc.input.connect(MEGB.outputs['signals'])
+    # osc = QOscilloscope()
+    # osc.configure(with_user_dialog=True)
+    # osc.input.connect(MEGB.outputs['signals'])
+    inputStream.connect(MEGB.outputs['signals'])
 
-    osc.initialize()
-    osc.show()
+    # osc.initialize()
+    # osc.show()
 
     # start both nodes
-    osc.start()
+    # osc.start()
     MEGB.start()
     #time.sleep(40)
+    dataIsAvailable = inputStream.poll()
+    if(dataIsAvailable):
+            print("Data received from inputStream : "+ inputStream.recv())
+    
+    
+        
+    
     app.exec_()
     time.sleep(40)
     
     MEGB.stop()
-    osc.stop()
+    inputStream.stop()
+    # osc.stop()
     
 
     
