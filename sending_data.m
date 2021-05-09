@@ -1,23 +1,26 @@
-%% Clean path
+% Clean path
 restoredefaultpath
 addpath C:\Users\Coco\Documents\GitHub\fieldtrip
 ft_defaults
 
 %% Testing dataset
+
+name2 = '0989_RAW_02.fif';
+name = '0989_FILTER_02.fif';
 % 
-% cfg=[];
-% cfg.dataset = 'ma_04.fif';
-% hdr = ft_read_header('ma_04.fif');
-% dat = ft_read_data('ma_04.fif');
-% events = ft_read_event('ma_04.fif');
-
-
 cfg=[];
-cfg.dataset = 'ma_agency_20201210_01.ds';
-hdr = ft_read_header('ma_agency_20201210_01.ds/ma_agency_20201210_01.res4');
-dat = ft_read_data('ma_agency_20201210_01.ds/ma_agency_20201210_01.meg4');
-events = ft_read_event('ma_agency_20201210_01.ds');
-events(1:21)
+cfg.dataset = name;
+hdr = ft_read_header(name);
+dat = ft_read_data(name);
+%events = ft_read_event(name);
+
+
+% cfg=[];
+% cfg.dataset = 'ma_agency_20201210_01.ds';
+% hdr = ft_read_header('ma_agency_20201210_01.ds/ma_agency_20201210_01.res4');
+% dat = ft_read_data('ma_agency_20201210_01.ds/ma_agency_20201210_01.meg4');
+% events = ft_read_event('ma_agency_20201210_01.ds');
+% events(1:21)
     
 % [xall,yall] = butter(2,[0.05,30]/hdr.Fs);
 % for ch=1,hdr.nChans
@@ -38,7 +41,7 @@ target     = 'buffer://localhost:1972';
 %we choose 100seconds for testing
 %so the 100x is to respect the frequency of the data
 %duration   = 100*hdr.Fs;              
-
+    
 ft_write_data(target, [], 'header', hdr, 'append', false);
 
 % We send a continuous data at a Fs rate
@@ -72,6 +75,7 @@ for i=1:nbPaquetToSend
         fprintf('No event in this package \n');
 %    end  
    fprintf('Sending %d samples on the network \n', i*nbSamplesPaquet);
+   fprintf('Data : %d ',dat(:,startSample:endSample));
    pauses(0.01)
 end
 t1=toc;

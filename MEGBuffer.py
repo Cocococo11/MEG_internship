@@ -47,9 +47,10 @@ class MEGBuffer_Thread(QtCore.QThread):
         ch = ch_names
         picks = []
         for i in range(len(ch)):
-            if (('ML' in ch[i]) or ('MR' in ch[i]) or ('MZ' in ch[i]) or 
-                ('B' in ch[i]) or ('R' in ch[i]) or ('P' in ch[i]) or
-                ('Q' in ch[i]) or ('G' in ch[i])) and ('EEG' not in ch[i]) and ('UPPT' not in ch[i]):
+            if (('ML' in ch[i]) or ('MR' in ch[i]) or ('MZ' in ch[i]) and ('EEG' not in ch[i]) and ('UPPT' not in ch[i])):
+                #or 
+                #B' in ch[i]) or ('R' in ch[i]) or ('P' in ch[i]) or
+                #('Q' in ch[i]) or ('G' in ch[i]))
                 picks.append(i)
             
         data = data[:,picks]              
@@ -196,7 +197,9 @@ if __name__ == "__main__":
     #Nodes 
     MEGB =  MEGBuffer()
     inputStream = InputStream()
-    classifier = load('classifiers/0989_meg_CLF_sample [-0.4,-0.2].joblib')
+    classifier = load('classifiers/0989_meg_CLF_pack [-0.3,-0.1]_raw.joblib')
+    #classifier = load('classifiers/0989_meg_CLF_pack [-0.3,-0.1]_filter.joblib')
+    
     
     MEGB.configure()
     
@@ -228,7 +231,7 @@ if __name__ == "__main__":
     prediction =[2,2]
     matSaveNbSamples = np.zeros(1)
     matSaveData = np.zeros(1)
-    while(dataIsAvailable and i<300):
+    while(dataIsAvailable and i<1000):
         #print("Data received from inputStream : ")
         oldIndex = data[0]
         #print(data[0])
@@ -244,7 +247,7 @@ if __name__ == "__main__":
         values = data[1]
         values_clean = values[:,:]
         values_mean0 = np.mean(values_clean,axis=0)
-        values_mean1 = values_mean0.reshape(1,303)
+        values_mean1 = values_mean0.reshape(1,274)
 
         prediction[0]=prediction[1]
         prediction[1]= classifier.predict(values_mean1)
