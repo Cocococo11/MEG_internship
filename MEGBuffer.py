@@ -1,12 +1,19 @@
-import numpy as np
+#import numpy as np
 
-from pyacq.core import Node, register_node_type
-from pyacq.core.stream import stream, InputStream
+from pyacq.core import Node
+from pyacq.core.stream import InputStream
+from pyacq.rec import RawRecorder
 from pyqtgraph.Qt import QtCore, QtGui
 
-import struct
+#import struct
+import os
+import shutil
 import time
 from pyqtgraph.util.mutex import Mutex
+from joblib import load
+from datetime import datetime
+import numpy as np
+#from fieldtrip2mne import pick_channels
 
 try:
     import FieldTrip
@@ -14,8 +21,7 @@ try:
 except ImportError:
     HAVE_FIELDTRIP = False
     
-import FieldTrip
-from mne import pick_channels
+#import FieldTripfrom mne import pick_channels
 
 _dtype_trigger = [('pos', 'int64'),
                 ('points', 'int64'),
@@ -39,11 +45,14 @@ class MEGBuffer_Thread(QtCore.QThread):
         
     def extract_right_channels(self, data, ch_names):
         ch = ch_names
-        picks = list()
+        picks = []
         for i in range(len(ch)):
-            if 'MLC' in ch[i] :
-                picks.append(ch[i])
-        data.pick_channels(picks) #24 channel               
+            if (('ML' in ch[i]) or ('MR' in ch[i]) or ('MZ' in ch[i]) or 
+                ('B' in ch[i]) or ('R' in ch[i]) or ('P' in ch[i]) or
+                ('Q' in ch[i]) or ('G' in ch[i])) and ('EEG' not in ch[i]) and ('UPPT' not in ch[i]):
+                picks.append(i)
+            
+        data = data[:,picks]              
         return data     
 
     def run(self):
@@ -75,7 +84,8 @@ class MEGBuffer_Thread(QtCore.QThread):
             #print('On recupere les donnees et evenements')
             data = self.ftc.getData([lastIndex,globalIndex-1])
             events = self.ftc.getEvents([lastIndex,globalIndex-1])
-            #print('EVENEMENT : ', events)
+            # if(events is not None):
+            #     print('EVENEMENT : ', events)
             # nbEvents = 0
             # print('Nb evenements totaux : ', nbEvents)
             # if events is not None :
@@ -89,17 +99,18 @@ class MEGBuffer_Thread(QtCore.QThread):
             
             #We choose to extract only the data from the left motor hemisphere
             #print('ch_names we are gonna get the data of',self.ch_names)
-            #extracted_data = self.extract_right_channels(data, self.ch_names)
-            
+            nsamples= self.ftc.getHeader().nSamples
+            #print(nsamples)
+            extracted_data = self.extract_right_channels(data, self.ch_names)
             #if (D.shape[0] != 24 ):
             # print("On recupere depuis %d canaux un bloc de %d  (verification bloc %d )" %(data.shape[1], data.shape[0], globalIndex-lastIndex))
             #print("On envoie sur la sortie uniquement %d channels de donnees " %(extracted_data.shape[1]))
             
             #self.outputs['signals'].send(data.astype('float32'))
             #print('We are sending interesting data composed by %d channels' %(extracted_data))
-            #self.outputs['signals'].send(extracted_data.astype('float32'))
-            self.outputs['signals'].send(data.astype('float32'))
-            self.outputs['triggers'].send(events)
+            self.outputs['signals'].send(extracted_data.astype('float32'))
+            #self.outputs['signals'].send(data.astype('float32'))
+            #self.outputs['triggers'].send(events)
             
             lastIndex = globalIndex
 
@@ -107,6 +118,8 @@ class MEGBuffer_Thread(QtCore.QThread):
         print('Thread stopped')
         with self.lock:
             self.running = False
+            self.ftc.disconnect()
+            print('Socket disconnected')
 
 class MEGBuffer(Node):
     
@@ -171,7 +184,7 @@ class MEGBuffer(Node):
 
     def _stop(self):
         self._thread.stop()
-        self._thread.wait()
+        #self._thread.wait()
 
     def _close(self):
         pass
@@ -179,41 +192,84 @@ class MEGBuffer(Node):
 #register_node_type(MEGBuffer)
 
 if __name__ == "__main__":
-    from pyacq.viewers import QOscilloscope
-    app = QtGui.QApplication([])
-    
+
+    #Nodes 
     MEGB =  MEGBuffer()
     inputStream = InputStream()
+    classifier = load('classifiers/0989_meg_CLF_sample [-0.4,-0.2].joblib')
+    
     MEGB.configure()
     
-    MEGB.outputs['signals'].configure( transfermode='sharedmem')
-    #MEGB.outputs['triggers'].configure( transfermode='plaindata')
+    MEGB.outputs['signals'].configure( transfermode='plaindata')
+    MEGB.outputs['triggers'].configure( transfermode='plaindata')
     MEGB.initialize()
     
-    # osc = QOscilloscope()
-    # osc.configure(with_user_dialog=True)
-    # osc.input.connect(MEGB.outputs['signals'])
+    # dateT = datetime.now()
+    # timet = dateT.strftime("%H:%M:%S")
+    # timett = timet.replace(':', '') 
+    # dirname = timett
+    # while os.path.exists(dirname):
+    #     dirname+='1'
+         #shutil.rmtree(dirname)
+    
+    # rec = RawRecorder()
+    # rec.configure(streams=[MEGB.outputs['signals']], autoconnect=True, dirname=dirname)
+    # rec.initialize()
+
     inputStream.connect(MEGB.outputs['signals'])
 
-    # osc.initialize()
-    # osc.show()
-
-    # start both nodes
-    # osc.start()
     MEGB.start()
+    # rec.start()
     #time.sleep(40)
     dataIsAvailable = inputStream.poll()
-    if(dataIsAvailable):
-            print("Data received from inputStream : "+ inputStream.recv())
-    
-    
+    data = inputStream.recv()
+    i=0
+    nbPred = 0
+    prediction =[2,2]
+    matSaveNbSamples = np.zeros(1)
+    matSaveData = np.zeros(1)
+    while(dataIsAvailable and i<300):
+        #print("Data received from inputStream : ")
+        oldIndex = data[0]
+        #print(data[0])
         
-    
-    app.exec_()
-    time.sleep(40)
+        data = inputStream.recv()
+        if(data[0] is not None and data[1][:,200] is not None):
+            b = np.ones(24)*data[0]
+            c= data[1][:,200]
+            matSaveNbSamples = np.append(matSaveNbSamples,b, axis=0)
+            matSaveData = np.append(matSaveData,c, axis=0)
+            
+            
+        values = data[1]
+        values_clean = values[:,:]
+        values_mean0 = np.mean(values_clean,axis=0)
+        values_mean1 = values_mean0.reshape(1,303)
+
+        prediction[0]=prediction[1]
+        prediction[1]= classifier.predict(values_mean1)
+        # prediction[1]= classifier.predict_proba(random_val)
+        #print("Proba : ", prediction[1])
+        pred = prediction[1]
+        if(prediction[0]+prediction[1]==0):
+            print("Mouvement detecté au sample numero : ", data[0])
+            nbPred=nbPred+1
+        dataIsAvailable = inputStream.poll()
+        #print("i: " ,i)
+        i=i+1
+        
+    #dataNumpy = np.asarray(matSave)
+    print("Saving data ...")
+    np.savetxt('npfileSamples.csv', matSaveNbSamples,  delimiter='\n')
+    np.savetxt('npfileData.csv', matSaveData,  delimiter='\n')
+    print("We found %d detections of motor activity out of %d samples "%(nbPred,oldIndex))
+    print("Which means one detection every %d samples" %(oldIndex/nbPred))
     
     MEGB.stop()
-    inputStream.stop()
+    # rec.stop()
+    inputStream.close()
+    MEGB.close()
+    # rec.close()
     # osc.stop()
     
 
