@@ -137,8 +137,8 @@ class MEGBuffer(Node):
 
     def _configure(self):
 
-        self.hostname = 'localhost'
-        #self.hostname ='100.1.1.5'
+        # self.hostname = 'localhost'
+        self.hostname ='100.1.1.5'
         self.port = 1972
         
         self.ftc = FieldTrip.Client()
@@ -204,13 +204,13 @@ if __name__ == "__main__":
     classifier = load('classifiers/0989_meg_CLF_pack [-0.3,-0.1]_filter.joblib')
     #classifier = load('classifiers/0989_meg_CLF_pack [-0.3,-0.1]_filter.joblib')
     
-    # Analyzing the triggers from a local file (to comment if not in local)
-    raw = read_raw_ctf('0989MY_agency_20210415_02.ds', preload=True)
-    # **** reading the triggering channel ****
-    trigger_ch_number = raw.ch_names.index('UPPT002')
-    trigger = raw.get_data()[trigger_ch_number]
-    events_tri = mne.find_events(raw, stim_channel="UPPT002", consecutive=True, shortest_event=1)
-    plt.plot(trigger) #
+    # # Analyzing the triggers from a local file (to comment if not in local)
+    # raw = read_raw_ctf('0989MY_agency_20210415_02.ds', preload=True)
+    # # **** reading the triggering channel ****
+    # trigger_ch_number = raw.ch_names.index('UPPT002')
+    # trigger = raw.get_data()[trigger_ch_number]
+    # events_tri = mne.find_events(raw, stim_channel="UPPT002", consecutive=True, shortest_event=1)
+    # # plt.plot(trigger) #
     
     
     # Configuring MEGBuffer node
@@ -298,7 +298,7 @@ if __name__ == "__main__":
     np.savetxt('saves/rawData.csv', matSaveData,  delimiter='\n')
     np.savetxt('saves/indexClassifierTrigger.csv', matSaveTriggerHistory,  delimiter='\n')
     #TODO Comment the next line if you're not in local mode
-    np.savetxt('saves/triggersFromDSFile.csv', events_tri,  delimiter=',',fmt ='%d' )
+    # np.savetxt('saves/triggersFromDSFile.csv', events_tri,  delimiter=',',fmt ='%d' )
     print("We found %d detections of motor activity out of %d samples "%(nbPred,oldIndex))
     if(nbPred != 0):
         print("Which means one detection every %d samples" %(oldIndex/nbPred))
