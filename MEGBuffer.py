@@ -98,7 +98,7 @@ class MEGBuffer_Thread(QtCore.QThread):
             # To send to the next node, adding a column at the end
             nsamples= self.ftc.getHeader().nSamples
             #print(nsamples)
-            if(data[:,40].shape>24):
+            if(data[:,40].shape[0]>24):
                 data = data[24:48,:]
             arrayIndexes = np.ones(24).reshape(24,1)
             arrayIndexes = arrayIndexes*nsamples
