@@ -1,5 +1,3 @@
-#import numpy as np
-
 from pyacq.core import Node
 from pyacq.core.stream import InputStream
 # from pyacq.rec import RawRecorder
@@ -237,12 +235,14 @@ if __name__ == "__main__":
     
     # We save the first index to compare it to the known triggers (only in local)
     firstSampleIndex = data[1][7,274]
-    
+    print("The Fieldtrip Buffer node started on sample no : ",firstSampleIndex)
     
     i=0
-    nbPaquetsToTest = 100#  represents the number of packages of 24 we want to test
+    nbPaquetsToTest = 1000#  represents the number of packages of 24 we want to test
+    print("We will stop after %d samples received "%(nbPaquetsToTest))
+
     nbPred = 0
-    prediction =[2,2]
+    prediction =[2,2] # number of steps to predict an actual movement
     matSaveNbSamples = np.zeros(1)
     matSaveData = np.zeros(1)
     matSaveTriggerHistory = np.zeros(1)
@@ -263,9 +263,10 @@ if __name__ == "__main__":
             matSaveData = np.append(matSaveData,dataFrom200chan, axis=0)
             
             
+        # We remove here the last colum of the data which conveys the index of sample
         values = data[1][:,:274]
-        values_mean = np.mean(values,axis=0)
-        values_mean_reshaped = values_mean.reshape(1,274)
+        values_mean = np.mean(values,axis=0) # We average the 24 values for the classifier
+        values_mean_reshaped = values_mean.reshape(1,274) # Reshape it so the classifier can run properly
 
         prediction[0]=prediction[1]
         prediction[1]= classifier.predict(values_mean_reshaped)
@@ -274,11 +275,12 @@ if __name__ == "__main__":
         #print("Actual probability of detection  : ", probaPred)
         predCurrent = prediction[1]
         predBefore = prediction[0]
-        if((predCurrent + predBefore)==0):
+        if((predCurrent + predBefore)==0): # Here, we aim for two predictions in a row
             print("Trigger from classifier at the sample no ", data[1][13,274])
             
             triggerSample= np.zeros(1)
             triggerSample[0]= data[1][7,274]
+            # We save it into a matrix everytime there is a trigger from the classifier
             matSaveTriggerHistory = np.append(matSaveTriggerHistory,triggerSample, axis=0)
             nbPred=nbPred+1
         dataIsAvailable = inputStream.poll()
@@ -307,9 +309,11 @@ if __name__ == "__main__":
     
     
     # Closing the sockets and threads 
+    print("Exiting and closing the nodes and sockets")
     MEGB.stop()
     inputStream.close()
     MEGB.close()
+    print("Sockets and nodes successfuly closed")
     
 
     
