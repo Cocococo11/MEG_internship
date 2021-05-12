@@ -98,7 +98,8 @@ class MEGBuffer_Thread(QtCore.QThread):
             # To send to the next node, adding a column at the end
             nsamples= self.ftc.getHeader().nSamples
             #print(nsamples)
-            arrayIndexes = np.ones(24).reshape(24,1)
+            dataShape = data[:,40].shape
+            arrayIndexes = np.ones(dataShape).reshape(dataShape,1)
             arrayIndexes = arrayIndexes*nsamples
             extracted_data = self.extract_right_channels(data, self.ch_names)
             extracted_data_plus_indexes=np.append(extracted_data,arrayIndexes,axis=1)
