@@ -6,7 +6,8 @@ ft_defaults
 %% Testing dataset
 
 name2 = '0989_RAW_02.fif';
-name = '0989_FILTER_02.fif';
+name = '0991_FILTER.fif';
+file3 = 'ma_04.fif';
 % 
 cfg=[];
 cfg.dataset = name;
@@ -55,15 +56,15 @@ fprintf('%d samples are gonna be sent \n at a %d rate', nb_samples, frequency);
 % the frequency of 1200Hz
 
 % For testing purposes
-nbPaquetToSend= 100000;
-nbSamplesPaquet = 23;
+nbPaquetToSend= 3000;
+nbSamplesPaquet = 24;
 
 tic; t0=toc;
 n=2;
 for i=1:nbPaquetToSend
     
    startSample = i*nbSamplesPaquet;
-   endSample = (i+1)*nbSamplesPaquet;
+   endSample = (i+1)*(nbSamplesPaquet);
    
 %    if( (startSample < events(n).sample()) && (events(n).sample() < endSample))
 %     ft_write_data(target, dat(:,startSample:endSample), 'header', hdr, 'events', events(n), 'append', true);
@@ -71,11 +72,25 @@ for i=1:nbPaquetToSend
 % %     fprintf('Sent an event : ');
 % %     events(n).type();
 %    else 
-    ft_write_data(target, dat(:,startSample:endSample), 'header', hdr, 'append', true);
-        fprintf('No event in this package \n');
+
+% We are gonna send a packet bigger than usual to make sure we can manage
+% it
+
+    if(mod(startSample,5*24)==0)
+        ft_write_data(target, dat(:,startSample:2*endSample), 'header', hdr, 'append', true);
+        fprintf('Unusual 48 sized-packet sent \n');
+    elseif(mod(startSample,14*24)==0)
+        ft_write_data(target, dat(:,startSample:0.5*endSample), 'header', hdr, 'append', true);
+        fprintf('Unusual 12 sized-packet sent \n');
+    else
+        ft_write_data(target, dat(:,startSample:endSample), 'header', hdr, 'append', true);
+        fprintf('Normal 24 packet sent \n');
+    end
+    
 %    end  
-   fprintf('Sending %d samples on the network \n', i*nbSamplesPaquet);
-   fprintf('Data : %d ',dat(:,startSample:endSample));
+    fprintf('Sample no %d \n',startSample);
+   %fprintf('Sending %d samples on the network \n', endSample-startSample);
+   %fprintf('Data : %d ',dat(:,startSample:endSample));
    pauses(0.01)
 end
 t1=toc;

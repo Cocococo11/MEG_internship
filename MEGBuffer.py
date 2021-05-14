@@ -260,11 +260,8 @@ if __name__ == "__main__":
             sampleIndex = np.ones(24)*data[1][:,274]
             # Making the 24 samples indexes again
             for p in range(0,24):
-                print(p)
                 sampleIndex[p]=sampleIndex[p]+p
-                print(sampleIndex[p])
             dataFrom200chan= data[1][:,200] # We will save the data of the 200th channel
-            print(sampleIndex)
             matSaveNbSamples = np.append(matSaveNbSamples,sampleIndex, axis=0)
             matSaveData = np.append(matSaveData,dataFrom200chan, axis=0)
             
@@ -300,10 +297,6 @@ if __name__ == "__main__":
         i=i+1
         # if(predActive):
             #print("Trigger already started")
-            
-            
-        
-        
     lastSampleIndex = data[1][7,274]   
     
     # Only in local :
@@ -311,6 +304,25 @@ if __name__ == "__main__":
     # To the triggers during the trial (computer or human)
     
     # TODO
+    
+    # Using the matDetect matrix to extract the number of triggers after the first one
+    # The 50 information is going to be replaced by the number of subsequent triggers
+    # After the first one, and the ones will stay
+    for a in range(1,matDetect.size,24):
+        if(matDetect[a]==50):
+            y = 24
+            nbDetected=1
+            while(matDetect[a+y]==1):
+                y+=24
+                nbDetected+=1
+            matDetect[a]=nbDetected+1 
+            # Erasing all the 50 values that are not needed anymore
+            for k in range(1,24):
+                matDetect[a+k]=1
+                
+                
+            
+        
         
     
     # Saving the data under csv files
@@ -318,15 +330,14 @@ if __name__ == "__main__":
     final_directory = os.path.join(current_directory, r'saves')
     if not os.path.exists(final_directory):
        os.makedirs(final_directory)
-       
  
     print("Saving data ...")
     savingFileName = 'saves/savedData' + timeStamp + '.csv'
     matSaveData = np.c_[matSaveData,matSaveNbSamples,matDetect]
+    # Use fmt=%d if you don't need to use the values of the data and focus on the triggers
+    # Else, remove it because it will make the first column equal to zero (10e-14=> 0)
+    np.savetxt(savingFileName, matSaveData, delimiter=',',fmt='%d')
     
-    # We make different csv files to make it easier to use under excel
-    np.savetxt(savingFileName, matSaveData, delimiter=',')
-    np.savetxt('saves/indexClassifierTrigger.csv', matSaveTriggerHistory,  delimiter='\n')
     #TODO Comment the next line if you're not in local mode
     # np.savetxt('saves/triggersFromDSFile.csv', events_tri,  delimiter=',',fmt ='%d' )
     print("We found %d detections of motor activity out of %d samples "%(nbPred,oldIndex))
