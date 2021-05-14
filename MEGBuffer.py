@@ -1,5 +1,3 @@
-#import numpy as np
-
 from pyacq.core import Node
 from pyacq.core.stream import InputStream
 # from pyacq.rec import RawRecorder
@@ -69,7 +67,6 @@ class MEGBuffer_Thread(QtCore.QThread):
             with self.lock:
                 if not self.running:
                     break
-            try:
                 globalIndex, useless = self.ftc.poll()
                 
                 if lastIndex is None :
@@ -99,8 +96,6 @@ class MEGBuffer_Thread(QtCore.QThread):
                 # Here, we try to add the index of sample into the data we're going
                 # To send to the next node, adding a column at the end
                 nsamples= lastIndex
-                # nsamples= self.ftc.getHeader().nSamples
-                #print(nsamples)
                 if(data[:,40].shape[0]>24):
                     data = data[data[:,40].shape[0]-24:data[:,40].shape[0],:]
                 arrayIndexes = np.ones(24).reshape(24,1)
@@ -119,8 +114,8 @@ class MEGBuffer_Thread(QtCore.QThread):
                 #self.outputs['triggers'].send(events)
                  
                 lastIndex = globalIndex
-            except:
-                print("Error with the FieldTrip buffer or receiving data \n Now saving and closing")
+            
+                #print("Error with the FieldTrip buffer or receiving data \n Now saving and closing")
     def stop(self):
         print('Thread stopped')
         with self.lock:
@@ -239,17 +234,15 @@ if __name__ == "__main__":
     
     
     i=0
-    nbPaquetsToTest = 100#  represents the number of packages of 24 we want to test
+    nbPaquetsToTest = 500 #  represents the number of packages of 24 we want to test
     nbPred = 0
     prediction =[2,2]
     matSaveNbSamples = np.zeros(1)
     matSaveData = np.zeros(1)
     matDetect=np.zeros(1)
-    predActive=False
     matSaveTriggerHistory = np.zeros(1)
     while(dataIsAvailable and i<nbPaquetsToTest):
         #print("Data received from inputStream : ")
-        oldIndex = data[0]
         #print(data[0])
         
         data = inputStream.recv() # Pulling the data from the stream
@@ -278,8 +271,7 @@ if __name__ == "__main__":
         predCurrent = prediction[1]
         predBefore = prediction[0]
         if((predCurrent + predBefore)==0):
-            print("Trigger from classifier at the sample no ", data[1][13,274])
-            predActive=True    
+            print("Trigger from classifier at the sample no ", data[1][13,274])  
             triggerSample= np.zeros(1)
             triggerSample[0]= data[1][7,274]
             matSaveTriggerHistory = np.append(matSaveTriggerHistory,triggerSample, axis=0)
@@ -292,11 +284,14 @@ if __name__ == "__main__":
             toAdd=0
         matDetect=np.append(matDetect,toAdd*np.ones(24),axis=0)
         
-            
-        dataIsAvailable = inputStream.poll()
+        try :
+            dataIsAvailable = inputStream.poll(1000)
+        except : 
+            print("Error with polling the input stream")
+            break
+        #print('Dataisav: ',dataIsAvailable)
         i=i+1
-        # if(predActive):
-            #print("Trigger already started")
+        
     lastSampleIndex = data[1][7,274]   
     
     # Only in local :
@@ -308,14 +303,17 @@ if __name__ == "__main__":
     # Using the matDetect matrix to extract the number of triggers after the first one
     # The 50 information is going to be replaced by the number of subsequent triggers
     # After the first one, and the ones will stay
+    print("Modifying the saveDataMat")
+    print("SAVE ME MADDIE PLS <3")
     for a in range(1,matDetect.size,24):
         if(matDetect[a]==50):
             y = 24
             nbDetected=1
-            while(matDetect[a+y]==1):
-                y+=24
-                nbDetected+=1
-            matDetect[a]=nbDetected+1 
+            if(a+y<matDetect.size):
+                while(matDetect[a+y]==1):
+                    y+=24
+                    nbDetected+=1
+                matDetect[a]=nbDetected+1 
             # Erasing all the 50 values that are not needed anymore
             for k in range(1,24):
                 matDetect[a+k]=1
@@ -340,9 +338,9 @@ if __name__ == "__main__":
     
     #TODO Comment the next line if you're not in local mode
     # np.savetxt('saves/triggersFromDSFile.csv', events_tri,  delimiter=',',fmt ='%d' )
-    print("We found %d detections of motor activity out of %d samples "%(nbPred,oldIndex))
+    print("We found %d detections of motor activity out of %d packet(s) of 24 samples "%(nbPred,(lastSampleIndex-firstSampleIndex)/24))
     if(nbPred != 0):
-        print("Which means one detection every %d samples" %(oldIndex/nbPred))
+        print("Which means one detection every %d packets of 24 samples" %((lastSampleIndex-firstSampleIndex)/(nbPred*24)))
     else : 
         print("Not a single trigger")
     
