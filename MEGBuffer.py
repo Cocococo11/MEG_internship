@@ -60,7 +60,9 @@ class MEGBuffer_Thread(QtCore.QThread):
     def run(self):
         print('Thread running')
         lastIndex = None
-        prediction = [2,2]
+        nbSteps = 1
+        prediction = list(2*(np.ones(nbSteps)))
+        i = 0
         
         with self.lock:
             self.running = True
@@ -94,20 +96,22 @@ class MEGBuffer_Thread(QtCore.QThread):
                 values_mean = np.mean(values,axis=0)
                 values_mean_reshaped = values_mean.reshape(1,274)
         
-                prediction[0]=prediction[1]
-                prediction[1]= classifier.predict(values_mean_reshaped)
+                prediction[i]=classifier.predict(values_mean_reshaped)[0]
                 
-                predCurrent = prediction[1]
-                predBefore = prediction[0]
-                if((predCurrent + predBefore)==0):
+                if((max(prediction))==0):
                     print("Trigger from classifier at the sample no ", extracted_data_plus_indexes[13,274])
                     toSend=np.ones(1)
                 
-  
+                print(prediction)
+                print('i:',i)
                 self.outputs['signals'].send(toSend.astype('float32'))
                  
                 
                 lastIndex = globalIndex
+                if((i+1)>=nbSteps):
+                    i=0
+                else : 
+                    i=i+1
             
     def stop(self):
         print('Thread stopped')
@@ -197,7 +201,6 @@ if __name__ == "__main__":
     i=0
     nbPaquetsToTest = 500 #  represents the number of packages of 24 we want to test
     nbPred = 0
-    prediction =[2,2]
     while(dataIsAvailable and i<nbPaquetsToTest):        
         data = inputStream.recv() # Pulling the data from the stream
         if( data[1][0] == 1):
@@ -205,7 +208,8 @@ if __name__ == "__main__":
             nbPred+=1
                         
         else:
-            print('NO DETEK')
+            #print('NO DETEK')
+            a = 2
         try :
             dataIsAvailable = inputStream.poll(1000)
         except : 
@@ -218,10 +222,10 @@ if __name__ == "__main__":
 
   
 
-    # Closing the sockets and threads 
-    MEGB.stop()
-    inputStream.close()
-    MEGB.close()
+    # # Closing the sockets and threads 
+    # MEGB.stop()
+    # inputStream.close()
+    # MEGB.close()
     
 
     
