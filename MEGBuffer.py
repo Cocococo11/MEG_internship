@@ -59,6 +59,7 @@ class MEGBuffer_Thread(QtCore.QThread):
 
     def run(self):
         print('Thread running')
+        classifier = load('classifiers/0989_meg_CLF_pack [-0.3,-0.1]_filter.joblib')
         lastIndex = None
         nbSteps = 1
         prediction = list(2*(np.ones(nbSteps)))
@@ -99,11 +100,9 @@ class MEGBuffer_Thread(QtCore.QThread):
                 prediction[i]=classifier.predict(values_mean_reshaped)[0]
                 
                 if((max(prediction))==0):
-                    print("Trigger from classifier at the sample no ", extracted_data_plus_indexes[13,274])
+                    #print("Trigger from classifier at the sample no ", extracted_data_plus_indexes[13,274])
                     toSend=np.ones(1)
                 
-                print(prediction)
-                print('i:',i)
                 self.outputs['signals'].send(toSend.astype('float32'))
                  
                 
