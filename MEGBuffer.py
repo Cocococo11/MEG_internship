@@ -73,7 +73,7 @@ class MEGBuffer_Thread(QtCore.QThread):
         print('Thread running')
         self.subjectId = 'FAY'
         # clfName = 'classifiers/meg/MAR_meg_CLF [-0.3,-0.1].joblib'
-        clfName = 'classifiers/meg/FAY_meg_CLF [-0.3,-0.1].joblib'
+        clfName = 'classifiers/FAY_meg_CLF [-0.3,-0.1].joblib'
         #classifier = load('classifiers/meg/'+self.subjectId+'_meg_CLF [-0.3,-0.1].joblib')
         
         classifier = load(clfName) # Cross clf / data
@@ -209,7 +209,7 @@ class MEGBuffer_Thread(QtCore.QThread):
         matSaveData = np.c_[self.matSaveData,self.matSaveNbSamples,self.matDetect,self.matProbas,self.matProbas2,self.matSaveDataTrigger]
         # Use fmt=%d if you don't need to use the values of the data and focus on the triggers
         # Else, remove it because it will make the first column equal to zero (10e-14=> 0)
-        np.savetxt(savingFileName, matSaveData, delimiter=',',fmt='%f')
+        np.savetxt(savingFileName, matSaveData, delimiter=',',fmt='%5.4g')
         
         # # # Analyzing the triggers from a local file (to comment if not in local)
         # raw = read_raw_ctf('data/0989MY_agency_20210415_06.ds', preload=True)
@@ -243,8 +243,8 @@ class MEGBuffer(Node):
 
     def _configure(self):
 
-        # self.hostname = 'localhost'
-        self.hostname ='100.1.1.5'
+        self.hostname = 'localhost'
+        # self.hostname ='100.1.1.5'
         self.port = 1972
         self.ftc = FieldTrip.Client()
         self.ftc.connect(self.hostname, self.port)    # might throw IOError
@@ -304,7 +304,7 @@ if __name__ == "__main__":
     data = inputStream.recv()
       
     i=0
-    nbPaquetsToTest = 2000 #  represents the number of packages of 24 we want to test
+    nbPaquetsToTest = 200 #  represents the number of packages of 24 we want to test
     nbPred = 0
     while(dataIsAvailable and i<nbPaquetsToTest):    
     # while(dataIsAvailable):          
