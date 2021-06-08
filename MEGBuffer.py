@@ -14,6 +14,9 @@ from mne.io import read_raw_ctf
 import matplotlib.pyplot as plt
 from datetime import datetime
 import numpy as np
+import pandas as pd
+from predicting_clf import predicting_clf 
+from config import * 
 #from fieldtrip2mne import pick_channels
 
 try:
@@ -34,7 +37,7 @@ _dtype_trigger = [('pos', 'int64'),
     
 class MEGBuffer_Thread(QtCore.QThread):
 
-    def __init__(self, ftc, outputs, parent=None,ch_names=None):
+    def __init__(self, ftc, outputs, parent=None,ch_names=None,sample_rate=None):
         assert HAVE_FIELDTRIP, "MEGBuffer node depends on the `FieldTrip` package, but it could not be imported. Please make sure to download FieldTrip.py and store it next to this file "
         print('Thread initialized')
         QtCore.QThread.__init__(self)
@@ -43,6 +46,15 @@ class MEGBuffer_Thread(QtCore.QThread):
         self.ftc = ftc
         self.outputs=outputs
         self.ch_names = ch_names
+        self.Fs = sample_rate
+        # Initializing save matrixes
+        self.matSaveNbSamples = np.zeros(1)
+        self.matSaveData = np.zeros(1)
+        self.matDetect=np.zeros(1)
+        self.matProbas=np.zeros(1)
+        self.matProbas2=np.zeros(1)
+        self.matSaveDataTrigger=np.zeros(1)
+        
         
     def extract_right_channels(self, data, ch_names):
         ch = ch_names
@@ -59,7 +71,18 @@ class MEGBuffer_Thread(QtCore.QThread):
 
     def run(self):
         print('Thread running')
+        self.subjectId = 'FAY'
+        # clfName = 'classifiers/meg/MAR_meg_CLF [-0.3,-0.1].joblib'
+        clfName = 'classifiers/meg/FAY_meg_CLF [-0.3,-0.1].joblib'
+        #classifier = load('classifiers/meg/'+self.subjectId+'_meg_CLF [-0.3,-0.1].joblib')
+        
+        classifier = load(clfName) # Cross clf / data
         lastIndex = None
+        self.nbSteps = 5  
+        print('chosen classifier : ' + clfName + 'with nb of step : ' + str(self.nbSteps))
+        prediction = list(2*(np.ones(self.nbSteps)))
+        i = 0
+        
         with self.lock:
             self.running = True
             
@@ -67,62 +90,146 @@ class MEGBuffer_Thread(QtCore.QThread):
             with self.lock:
                 if not self.running:
                     break
-                globalIndex, useless = self.ftc.poll()
+                try:
+
+                    globalIndex, useless = self.ftc.poll()
+                except:
+                    print("polling failed")
+                    time.sleep(0.1)
+                toSend = np.zeros(1)
                 
                 if lastIndex is None :
                     lastIndex = globalIndex
                     
                 if(globalIndex==lastIndex):
-                    #print('last index : ' +lastIndex)
-                    #print('global index : ' +globalIndex)
-                    #print('Stuck because no new data fetched, we sleep for 0.005s')
                     time.sleep(0.005)
                     continue
                 
-                #TODO 
-                # We should not fetch data when globalIndex = lastIndex
-                # and so in the case we sleep, we should also skip these 2 next lines
-                #print('On recupere les donnees et evenements')
-                data = self.ftc.getData([lastIndex,globalIndex-1])
-                #events = self.ftc.getEvents([lastIndex,globalIndex-1])
-                # if(events is not None):
-                #     print('EVENEMENT : ', events)
-                # nbEvents = 0
-                # print('Nb evenements totaux : ', nbEvents)
-                # if events is not None :
-                #     nbEvents+=nbEvents
-                
-                
-                # Here, we try to add the index of sample into the data we're going
-                # To send to the next node, adding a column at the end
+                # Getting the data from the fieldtripclient
+                try :
+                    data = self.ftc.getData([lastIndex,globalIndex-1])
+                except :
+                    time.sleep(5)
+
                 nsamples= lastIndex
+                # We only want 24 sized packages
+                # If we get one bigger than 24, we only take the end of the package
                 if(data[:,40].shape[0]>24):
                     data = data[data[:,40].shape[0]-24:data[:,40].shape[0],:]
+                    
+                # We are adding the information at the end of the array which contains
+                # Information about the sample number
                 arrayIndexes = np.ones(24).reshape(24,1)
                 arrayIndexes = arrayIndexes*nsamples
                 extracted_data = self.extract_right_channels(data, self.ch_names)
                 extracted_data_plus_indexes=np.append(extracted_data,arrayIndexes,axis=1)
-                #print(extracted_data_plus_indexes.shape)
-                #if (D.shape[0] != 24 ):
-                # print("On recupere depuis %d canaux un bloc de %d  (verification bloc %d )" %(data.shape[1], data.shape[0], globalIndex-lastIndex))
-                #print("On envoie sur la sortie uniquement %d channels de donnees " %(extracted_data.shape[1]))
                 
-                #self.outputs['signals'].send(data.astype('float32'))
-                #print('We are sending interesting data composed by %d channels' %(extracted_data))
-                self.outputs['signals'].send(extracted_data_plus_indexes.astype('float32'))
-                #self.outputs['signals'].send(data.astype('float32'))
-                #self.outputs['triggers'].send(events)
+                # The raw values we want to save
+                values = extracted_data_plus_indexes[:,:274]
+                values_mean = np.mean(values, axis=0)
+                values_mean_reshaped = values_mean.reshape(1,274)
+                
+                sampleIndex = np.ones(24)*nsamples
+                for p in range(0,24):
+                    sampleIndex[p]=sampleIndex[p]+p
+                    
+                dataFrom200chan= values[:,200] # We will save the data of the 200th channel
+                dataFromTrigger =  data[:,319]
+                # print('dataFromTrigger',dataFromTrigger)
+                self.matSaveNbSamples = np.append(self.matSaveNbSamples,sampleIndex, axis=0)
+                self.matSaveData = np.append(self.matSaveData,dataFrom200chan, axis=0)
+                self.matSaveDataTrigger = np.append(self.matSaveDataTrigger,dataFromTrigger, axis=0)
+                
+                
+                # print(values_mean_reshaped)
+
+                prediction[i]=classifier.predict(values_mean_reshaped)[0]
+                
+                prediction_proba=classifier.predict_proba(values_mean_reshaped)[0]
+                mat_prediction_proba = np.ones(24)*prediction_proba[0]
+                mat_prediction_proba2 = np.ones(24)*prediction_proba[1]
+                self.matProbas = np.append(self.matProbas,mat_prediction_proba, axis=0)
+                self.matProbas2 = np.append(self.matProbas2,mat_prediction_proba2, axis=0)
+                # print(prediction_proba)
+                
+                
+                if((max(prediction))==0):
+                    #print("Trigger from classifier at the sample no ", extracted_data_plus_indexes[13,274])
+                    toSend=np.ones(1)
+                    print(prediction_proba)
+                    
+                    if(self.matDetect[-1]==50 or self.matDetect[-1]==0.5):
+                        toAdd=0.5
+                    else:
+                        toAdd=50
+                else:
+                    toAdd=0
+                self.matDetect=np.append(self.matDetect,toAdd*np.ones(24),axis=0)
+                
+                self.outputs['signals'].send(toSend.astype('float32'))
                  
+                
                 lastIndex = globalIndex
+                if((i+1)>=self.nbSteps):
+                    i=0
+                else : 
+                    i=i+1
             
-                #print("Error with the FieldTrip buffer or receiving data \n Now saving and closing")
     def stop(self):
         print('Thread stopped')
+        # Using the matDetect matrix to extract the number of triggers after the first one
+        # The 50 information is going to be replaced by the number of subsequent triggers
+        # After the first one, and the ones will stay
+        print("Modifying the saveDataMat")
+        for a in range(1,self.matDetect.size,24):
+            if(self.matDetect[a]==50):
+                y = 24
+                nbDetected=0
+                if(a+y<self.matDetect.size):
+                    while(self.matDetect[a+y]==0.5 and (a+y+24<self.matDetect.size)):
+                        y+=24
+                        nbDetected+=1
+                    self.matDetect[a]=nbDetected+1 
+                # Erasing all the 50 values that are not needed anymore
+                for k in range(1,24):
+                    self.matDetect[a+k]=0.5
+                    
+        current_directory = os.getcwd()
+        final_directory = os.path.join(current_directory, r'saves')
+        if not os.path.exists(final_directory):
+           os.makedirs(final_directory)
+        
+        # Configuring the name of the saving file
+        dateT = datetime.now()
+        timet = dateT.strftime("%H:%M:%S")
+        timeStamp = timet.replace(':', '') 
+    
+        print("Saving data ...")
+        savingFileName = 'saves/savedData' + self.subjectId +'_' + timeStamp +'_'+ str(self.nbSteps) +'steps.csv'
+        matSaveData = np.c_[self.matSaveData,self.matSaveNbSamples,self.matDetect,self.matProbas,self.matProbas2,self.matSaveDataTrigger]
+        # Use fmt=%d if you don't need to use the values of the data and focus on the triggers
+        # Else, remove it because it will make the first column equal to zero (10e-14=> 0)
+        np.savetxt(savingFileName, matSaveData, delimiter=',',fmt='%f')
+        
+        # # # Analyzing the triggers from a local file (to comment if not in local)
+        # raw = read_raw_ctf('data/0989MY_agency_20210415_06.ds', preload=True)
+        # # **** reading the triggering channel ****
+        # trigger_ch_number = raw.ch_names.index('UPPT002')
+        # trigger = raw.get_data()[trigger_ch_number]
+        # events_tri = mne.find_events(raw, stim_channel="UPPT002", consecutive=True, shortest_event=1)
+        # plt.plot(trigger) #
+        # np.savetxt('saves/triggersFromDSFile'+timeStamp+'.csv', events_tri,  delimiter=',',fmt ='%d' )
+        try :
+            predicting_clf(timeStamp,self.subjectId,self.nbSteps)
+        except :
+            print('predict_clf failed miserably')
+
         with self.lock:
             self.running = False
             self.ftc.disconnect()
             print('Socket disconnected')
-
+            
+            
 class MEGBuffer(Node):
     
     _output_specs = {'signals': dict(streamtype='analogsignal', dtype='float32',
@@ -136,28 +243,13 @@ class MEGBuffer(Node):
 
     def _configure(self):
 
-        self.hostname = 'localhost'
-        #self.hostname ='100.1.1.5'
+        # self.hostname = 'localhost'
+        self.hostname ='100.1.1.5'
         self.port = 1972
-        
         self.ftc = FieldTrip.Client()
-        
-        # Testing connection to the Client
-        print('Trying to connect to buffer on %s:%i ...' % (self.hostname, self.port))
         self.ftc.connect(self.hostname, self.port)    # might throw IOError
-        
-        #Debugging
-        
-        print('\nConnected - trying to read header...')
         self.H = self.ftc.getHeader()
-        if self.H is None:
-            print('Failed!')
-        else:
-            print('Header successfully obtained : ')
-            print(self.H)
-            print(self.H.labels)
-        
-        
+        print(self.H)
         self.nb_channel = self.H.nChannels
         self.sample_rate = self.H.fSample
         self.nb_samples = self.H.nSamples
@@ -168,7 +260,7 @@ class MEGBuffer(Node):
         self.chan_names = self.H.labels
           
         # Settings of the output for the next PyAcq node
-        self.outputs['signals'].spec['shape'] = (-1, self.nb_channel)
+        self.outputs['signals'].spec['shape'] = (-1, 1)
         
         self.outputs['signals'].spec['nb_channel'] = self.nb_channel
         self.outputs['signals'].spec['sample_rate'] = self.sample_rate
@@ -177,7 +269,7 @@ class MEGBuffer(Node):
 
     def _initialize(self):
         self._thread = MEGBuffer_Thread(self.ftc, outputs=self.outputs,
-                                        parent=self, ch_names=self.chan_names)
+                                        parent=self, ch_names=self.chan_names,sample_rate=self.sample_rate)
         
 
 
@@ -199,19 +291,6 @@ if __name__ == "__main__":
     MEGB =  MEGBuffer()
     inputStream = InputStream()
     
-    # Choosing which classifier to use
-    classifier = load('classifiers/0989_meg_CLF_pack [-0.3,-0.1]_filter.joblib')
-    #classifier = load('classifiers/0989_meg_CLF_pack [-0.3,-0.1]_filter.joblib')
-    
-    # # Analyzing the triggers from a local file (to comment if not in local)
-    # raw = read_raw_ctf('0989MY_agency_20210415_02.ds', preload=True)
-    # # **** reading the triggering channel ****
-    # trigger_ch_number = raw.ch_names.index('UPPT002')
-    # trigger = raw.get_data()[trigger_ch_number]
-    # events_tri = mne.find_events(raw, stim_channel="UPPT002", consecutive=True, shortest_event=1)
-    # plt.plot(trigger) #
-    
-    
     # Configuring MEGBuffer node
     MEGB.configure()  
     MEGB.outputs['signals'].configure( transfermode='plaindata')
@@ -219,136 +298,40 @@ if __name__ == "__main__":
     MEGB.initialize()
     inputStream.connect(MEGB.outputs['signals'])
     MEGB.start()    
-    
-    # Configuring the name of the saving file
-    dateT = datetime.now()
-    timet = dateT.strftime("%H:%M:%S")
-    timeStamp = timet.replace(':', '') 
 
     # Polling and receiving the data sent by the MEGBuffer node
     dataIsAvailable = inputStream.poll()
     data = inputStream.recv()
-    
-    # We save the first index to compare it to the known triggers (only in offline testing)
-    firstSampleIndex = data[1][7,274]
-    
-    
+      
     i=0
-    nbPaquetsToTest = 500 #  represents the number of packages of 24 we want to test
+    nbPaquetsToTest = 2000 #  represents the number of packages of 24 we want to test
     nbPred = 0
-    prediction =[2,2]
-    matSaveNbSamples = np.zeros(1)
-    matSaveData = np.zeros(1)
-    matDetect=np.zeros(1)
-    matSaveTriggerHistory = np.zeros(1)
-    while(dataIsAvailable and i<nbPaquetsToTest):
-        #print("Data received from inputStream : ")
-        #print(data[0])
-        
+    while(dataIsAvailable and i<nbPaquetsToTest):    
+    # while(dataIsAvailable):          
         data = inputStream.recv() # Pulling the data from the stream
-        
-        # This loop makes sure we don't save null values
-        # Which exist since the .recv() can return null
-        if(data[0] is not None and data[1][:,200] is not None):
-            sampleIndex = np.ones(24)*data[1][:,274]
-            # Making the 24 samples indexes again
-            for p in range(0,24):
-                sampleIndex[p]=sampleIndex[p]+p
-            dataFrom200chan= data[1][:,200] # We will save the data of the 200th channel
-            matSaveNbSamples = np.append(matSaveNbSamples,sampleIndex, axis=0)
-            matSaveData = np.append(matSaveData,dataFrom200chan, axis=0)
-            
-            
-        values = data[1][:,:274]
-        values_mean = np.mean(values,axis=0)
-        values_mean_reshaped = values_mean.reshape(1,274)
-
-        prediction[0]=prediction[1]
-        prediction[1]= classifier.predict(values_mean_reshaped)
-        
-        probaPred = classifier.predict_proba(values_mean_reshaped)
-        #print("Actual probability of detection  : ", probaPred)
-        predCurrent = prediction[1]
-        predBefore = prediction[0]
-        if((predCurrent + predBefore)==0):
-            print("Trigger from classifier at the sample no ", data[1][13,274])  
-            triggerSample= np.zeros(1)
-            triggerSample[0]= data[1][7,274]
-            matSaveTriggerHistory = np.append(matSaveTriggerHistory,triggerSample, axis=0)
-            nbPred=nbPred+1
-            if(matDetect[-1]==50 or matDetect[-1]==1):
-                toAdd=1
-            else:
-                toAdd=50
+        if( data[1][0] == 1):
+            print('Detection')
+            nbPred+=1
+                        
         else:
-            toAdd=0
-        matDetect=np.append(matDetect,toAdd*np.ones(24),axis=0)
-        
+            #print('NO DETEK')
+            a = 2
         try :
             dataIsAvailable = inputStream.poll(1000)
         except : 
             print("Error with polling the input stream")
             break
-        #print('Dataisav: ',dataIsAvailable)
         i=i+1
         
-    lastSampleIndex = data[1][7,274]   
-    
-    # Only in local :
-    # Knowing the first and last index of the data we tested, we can compare it 
-    # To the triggers during the trial (computer or human)
-    
-    # TODO
-    
-    # Using the matDetect matrix to extract the number of triggers after the first one
-    # The 50 information is going to be replaced by the number of subsequent triggers
-    # After the first one, and the ones will stay
-    print("Modifying the saveDataMat")
-    print("SAVE ME MADDIE PLS <3")
-    for a in range(1,matDetect.size,24):
-        if(matDetect[a]==50):
-            y = 24
-            nbDetected=1
-            if(a+y<matDetect.size):
-                while(matDetect[a+y]==1):
-                    y+=24
-                    nbDetected+=1
-                matDetect[a]=nbDetected+1 
-            # Erasing all the 50 values that are not needed anymore
-            for k in range(1,24):
-                matDetect[a+k]=1
-                
-                
-            
+    print("Nb detek : ",nbPred)
         
-        
-    
-    # Saving the data under csv files
-    current_directory = os.getcwd()
-    final_directory = os.path.join(current_directory, r'saves')
-    if not os.path.exists(final_directory):
-       os.makedirs(final_directory)
- 
-    print("Saving data ...")
-    savingFileName = 'saves/savedData' + timeStamp + '.csv'
-    matSaveData = np.c_[matSaveData,matSaveNbSamples,matDetect]
-    # Use fmt=%d if you don't need to use the values of the data and focus on the triggers
-    # Else, remove it because it will make the first column equal to zero (10e-14=> 0)
-    np.savetxt(savingFileName, matSaveData, delimiter=',',fmt='%d')
-    
-    #TODO Comment the next line if you're not in local mode
-    # np.savetxt('saves/triggersFromDSFile.csv', events_tri,  delimiter=',',fmt ='%d' )
-    print("We found %d detections of motor activity out of %d packet(s) of 24 samples "%(nbPred,(lastSampleIndex-firstSampleIndex)/24))
-    if(nbPred != 0):
-        print("Which means one detection every %d packets of 24 samples" %((lastSampleIndex-firstSampleIndex)/(nbPred*24)))
-    else : 
-        print("Not a single trigger")
-    
-    
+
+  
+
     # Closing the sockets and threads 
-    # MEGB.stop()
-    # inputStream.close()
-    # MEGB.close()
+    MEGB.stop()
+    inputStream.close()
+    MEGB.close()
     
 
     
