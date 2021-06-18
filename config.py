@@ -15,6 +15,9 @@ elif computer is 'corentin':
     path_data = '/Users/Coco/Desktop/simple-megbuffer and script/data'
     #path_analyzed_data =  #pas besoin ici
     path_saving = '/Users/Coco/Desktop/simple-megbuffer and script/saves'
+
+# sessionType = 'session2_part1','session2_part2'
+sessionType = 'session2_part2'
  
 # **** subjects ************************************************************
 # subjects_id = ['MAR', 'SAL', 'FAY',
