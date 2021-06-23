@@ -297,7 +297,7 @@ if __name__ == "__main__":
     inputStream = InputStream()
     
     # Configuring MEGBuffer node
-    MEGB.configure(nb_steps_chosen=5)  
+    MEGB.configure(nb_steps_chosen=5,clf_name= 'classifiers/FAY_meg_CLF [-0.3,-0.1].joblib')  
     MEGB.outputs['signals'].configure( transfermode='plaindata')
     MEGB.outputs['triggers'].configure( transfermode='plaindata')
     MEGB.initialize()
