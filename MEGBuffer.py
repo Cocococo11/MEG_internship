@@ -37,7 +37,7 @@ _dtype_trigger = [('pos', 'int64'),
     
 class MEGBuffer_Thread(QtCore.QThread):
 
-    def __init__(self, ftc, outputs, parent=None,ch_names=None,sample_rate=None):
+    def __init__(self, ftc, outputs, parent=None,ch_names=None,sample_rate=None,nb_steps=5,clf_name=None):
         assert HAVE_FIELDTRIP, "MEGBuffer node depends on the `FieldTrip` package, but it could not be imported. Please make sure to download FieldTrip.py and store it next to this file "
         print('Thread initialized')
         QtCore.QThread.__init__(self)
@@ -47,6 +47,8 @@ class MEGBuffer_Thread(QtCore.QThread):
         self.outputs=outputs
         self.ch_names = ch_names
         self.Fs = sample_rate
+        self.nb_steps_chosen = nb_steps
+        self.clf_name = clf_name
         # Initializing save matrixes
         self.matSaveNbSamples = np.zeros(1)
         self.matSaveData = np.zeros(1)
@@ -73,12 +75,13 @@ class MEGBuffer_Thread(QtCore.QThread):
         print('Thread running')
         self.subjectId = 'FAY'
         # clfName = 'classifiers/meg/MAR_meg_CLF [-0.3,-0.1].joblib'
-        clfName = 'classifiers/FAY_meg_CLF [-0.3,-0.1].joblib'
+        # clfName = 'classifiers/FAY_meg_CLF [-0.3,-0.1].joblib'
+        clfName = self.clf_name
         #classifier = load('classifiers/meg/'+self.subjectId+'_meg_CLF [-0.3,-0.1].joblib')
         
         classifier = load(clfName) # Cross clf / data
         lastIndex = None
-        self.nbSteps = 5  
+        self.nbSteps = int(self.nb_steps_chosen)
         print('chosen classifier : ' + clfName + 'with nb of step : ' + str(self.nbSteps))
         prediction = list(2*(np.ones(self.nbSteps)))
         i = 0
@@ -135,7 +138,7 @@ class MEGBuffer_Thread(QtCore.QThread):
                     
                 dataFrom200chan= values[:,200] # We will save the data of the 200th channel
                 dataFromTrigger =  data[:,319]
-                # print('dataFromTrigger',dataFromTrigger)
+                # print('Data from trigger : ',dataFromTrigger) # For trigger debugging
                 self.matSaveNbSamples = np.append(self.matSaveNbSamples,sampleIndex, axis=0)
                 self.matSaveData = np.append(self.matSaveData,dataFrom200chan, axis=0)
                 self.matSaveDataTrigger = np.append(self.matSaveDataTrigger,dataFromTrigger, axis=0)
@@ -156,7 +159,7 @@ class MEGBuffer_Thread(QtCore.QThread):
                 if((max(prediction))==0):
                     #print("Trigger from classifier at the sample no ", extracted_data_plus_indexes[13,274])
                     toSend=np.ones(1)
-                    print(prediction_proba)
+                    # print(prediction_proba)
                     
                     if(self.matDetect[-1]==50 or self.matDetect[-1]==0.5):
                         toAdd=0.5
@@ -241,7 +244,7 @@ class MEGBuffer(Node):
     def __init__(self, **kargs):
         Node.__init__(self, **kargs)
 
-    def _configure(self):
+    def _configure(self,nb_steps_chosen,clf_name):
 
         self.hostname = 'localhost'
         # self.hostname ='100.1.1.5'
@@ -250,6 +253,8 @@ class MEGBuffer(Node):
         self.ftc.connect(self.hostname, self.port)    # might throw IOError
         self.H = self.ftc.getHeader()
         print(self.H)
+        self.nb_steps_chosen = nb_steps_chosen
+        self.clf_name = clf_name
         self.nb_channel = self.H.nChannels
         self.sample_rate = self.H.fSample
         self.nb_samples = self.H.nSamples
@@ -269,7 +274,7 @@ class MEGBuffer(Node):
 
     def _initialize(self):
         self._thread = MEGBuffer_Thread(self.ftc, outputs=self.outputs,
-                                        parent=self, ch_names=self.chan_names,sample_rate=self.sample_rate)
+                                        parent=self, ch_names=self.chan_names,sample_rate=self.sample_rate,nb_steps=self.nb_steps_chosen,clf_name=self.clf_name)
         
 
 
@@ -292,7 +297,7 @@ if __name__ == "__main__":
     inputStream = InputStream()
     
     # Configuring MEGBuffer node
-    MEGB.configure()  
+    MEGB.configure(nb_steps_chosen=5)  
     MEGB.outputs['signals'].configure( transfermode='plaindata')
     MEGB.outputs['triggers'].configure( transfermode='plaindata')
     MEGB.initialize()
