@@ -68,18 +68,22 @@ class MEGBuffer_Thread(QtCore.QThread):
                 #('Q' in ch[i]) or ('G' in ch[i]))
                 picks.append(i)
             
-        data = data[:,picks]              
+        try : 
+            data = data[:,picks]              
+        except :
+            print("Error with channels : unusually high number")
+            data = data[:,:274] 
         return data     
 
     def run(self):
         print('Thread running')
-        self.subjectId = 'FAY'
+        self.subjectId = 'fay'
         # clfName = 'classifiers/meg/MAR_meg_CLF [-0.3,-0.1].joblib'
         # clfName = 'classifiers/FAY_meg_CLF [-0.3,-0.1].joblib'
         clfName = self.clf_name
         #classifier = load('classifiers/meg/'+self.subjectId+'_meg_CLF [-0.3,-0.1].joblib')
         
-        classifier = load(clfName) # Cross clf / data
+        classifier = load('./classifiers/meg/'+clfName) # Cross clf / data
         lastIndex = None
         self.nbSteps = int(self.nb_steps_chosen)
         print('chosen classifier : ' + clfName + 'with nb of step : ' + str(self.nbSteps))
@@ -137,7 +141,11 @@ class MEGBuffer_Thread(QtCore.QThread):
                     sampleIndex[p]=sampleIndex[p]+p
                     
                 dataFrom200chan= values[:,200] # We will save the data of the 200th channel
-                dataFromTrigger =  data[:,319]
+                try :
+                    dataFromTrigger =  data[:,319]
+                except : 
+                    print("Problem with channels")
+                    dataFromTrigger = np.zeros(24)
                 # print('Data from trigger : ',dataFromTrigger) # For trigger debugging
                 self.matSaveNbSamples = np.append(self.matSaveNbSamples,sampleIndex, axis=0)
                 self.matSaveData = np.append(self.matSaveData,dataFrom200chan, axis=0)
@@ -160,7 +168,7 @@ class MEGBuffer_Thread(QtCore.QThread):
                     #print("Trigger from classifier at the sample no ", extracted_data_plus_indexes[13,274])
                     toSend=np.ones(1)
                     # print(prediction_proba)
-                    
+
                     if(self.matDetect[-1]==50 or self.matDetect[-1]==0.5):
                         toAdd=0.5
                     else:
@@ -222,10 +230,15 @@ class MEGBuffer_Thread(QtCore.QThread):
         # events_tri = mne.find_events(raw, stim_channel="UPPT002", consecutive=True, shortest_event=1)
         # plt.plot(trigger) #
         # np.savetxt('saves/triggersFromDSFile'+timeStamp+'.csv', events_tri,  delimiter=',',fmt ='%d' )
-        try :
-            predicting_clf(timeStamp,self.subjectId,self.nbSteps)
-        except :
-            print('predict_clf failed miserably')
+        # try :
+            # predicting_clf(timeStamp,self.subjectId,self.nbSteps)
+
+
+        # predicting_clf(timeStamp,self.subjectId,self.nbSteps)
+
+
+        # except :
+            # print('predict_clf failed miserably')
 
         with self.lock:
             self.running = False
@@ -246,8 +259,8 @@ class MEGBuffer(Node):
 
     def _configure(self,nb_steps_chosen,clf_name):
 
-        self.hostname = 'localhost'
-        # self.hostname ='100.1.1.5'
+        # self.hostname = 'localhost'
+        self.hostname ='100.1.1.5'
         self.port = 1972
         self.ftc = FieldTrip.Client()
         self.ftc.connect(self.hostname, self.port)    # might throw IOError
