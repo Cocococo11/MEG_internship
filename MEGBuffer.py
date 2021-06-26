@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 from predicting_clf import predicting_clf 
 from config import * 
+from psychopy import data
 #from fieldtrip2mne import pick_channels
 
 try:
@@ -37,7 +38,7 @@ _dtype_trigger = [('pos', 'int64'),
     
 class MEGBuffer_Thread(QtCore.QThread):
 
-    def __init__(self, ftc, outputs, parent=None,ch_names=None,sample_rate=None,nb_steps=5,clf_name=None):
+    def __init__(self, ftc, outputs, parent=None,ch_names=None,sample_rate=None,nb_steps=5,clf_name=None,run_nbr=0,subjectId='default'):
         assert HAVE_FIELDTRIP, "MEGBuffer node depends on the `FieldTrip` package, but it could not be imported. Please make sure to download FieldTrip.py and store it next to this file "
         print('Thread initialized')
         QtCore.QThread.__init__(self)
@@ -49,6 +50,8 @@ class MEGBuffer_Thread(QtCore.QThread):
         self.Fs = sample_rate
         self.nb_steps_chosen = nb_steps
         self.clf_name = clf_name
+        self.run_nbr = run_nbr
+        self.subjectId = subjectId
         # Initializing save matrixes
         self.matSaveNbSamples = np.zeros(1)
         self.matSaveData = np.zeros(1)
@@ -56,8 +59,7 @@ class MEGBuffer_Thread(QtCore.QThread):
         self.matProbas=np.zeros(1)
         self.matProbas2=np.zeros(1)
         self.matSaveDataTrigger=np.zeros(1)
-        
-        
+           
     def extract_right_channels(self, data, ch_names):
         ch = ch_names
         picks = []
@@ -77,12 +79,7 @@ class MEGBuffer_Thread(QtCore.QThread):
 
     def run(self):
         print('Thread running')
-        self.subjectId = 'fay'
-        # clfName = 'classifiers/meg/MAR_meg_CLF [-0.3,-0.1].joblib'
-        # clfName = 'classifiers/FAY_meg_CLF [-0.3,-0.1].joblib'
         clfName = self.clf_name
-        #classifier = load('classifiers/meg/'+self.subjectId+'_meg_CLF [-0.3,-0.1].joblib')
-        
         classifier = load('./classifiers/meg/'+clfName) # Cross clf / data
         lastIndex = None
         self.nbSteps = int(self.nb_steps_chosen)
@@ -214,9 +211,10 @@ class MEGBuffer_Thread(QtCore.QThread):
         dateT = datetime.now()
         timet = dateT.strftime("%H:%M:%S")
         timeStamp = timet.replace(':', '') 
+        datePsy = data.getDateStr()
     
         print("Saving data ...")
-        savingFileName = 'saves/savedData' + self.subjectId +'_' + timeStamp +'_'+ str(self.nbSteps) +'steps.csv'
+        savingFileName = 'saves/save' + self.subjectId +'_' + datePsy +'_'+ str(self.nbSteps) +'steps_run'+str(self.run_nbr)+'.csv'
         matSaveData = np.c_[self.matSaveData,self.matSaveNbSamples,self.matDetect,self.matProbas,self.matProbas2,self.matSaveDataTrigger]
         # Use fmt=%d if you don't need to use the values of the data and focus on the triggers
         # Else, remove it because it will make the first column equal to zero (10e-14=> 0)
@@ -257,10 +255,10 @@ class MEGBuffer(Node):
     def __init__(self, **kargs):
         Node.__init__(self, **kargs)
 
-    def _configure(self,nb_steps_chosen,clf_name):
+    def _configure(self,nb_steps_chosen,clf_name,run_nbr,subjectId):
 
-        # self.hostname = 'localhost'
-        self.hostname ='100.1.1.5'
+        self.hostname = 'localhost'
+        # self.hostname ='100.1.1.5'
         self.port = 1972
         self.ftc = FieldTrip.Client()
         self.ftc.connect(self.hostname, self.port)    # might throw IOError
@@ -268,6 +266,9 @@ class MEGBuffer(Node):
         print(self.H)
         self.nb_steps_chosen = nb_steps_chosen
         self.clf_name = clf_name
+        self.run_nbr = run_nbr
+        self.subjectId = subjectId
+
         self.nb_channel = self.H.nChannels
         self.sample_rate = self.H.fSample
         self.nb_samples = self.H.nSamples
@@ -287,7 +288,9 @@ class MEGBuffer(Node):
 
     def _initialize(self):
         self._thread = MEGBuffer_Thread(self.ftc, outputs=self.outputs,
-                                        parent=self, ch_names=self.chan_names,sample_rate=self.sample_rate,nb_steps=self.nb_steps_chosen,clf_name=self.clf_name)
+                                        parent=self, ch_names=self.chan_names,
+                                        sample_rate=self.sample_rate,nb_steps=self.nb_steps_chosen,
+                                        clf_name=self.clf_name,run_nbr = self.run_nbr, subjectId = self.subjectId)
         
 
 
@@ -310,7 +313,7 @@ if __name__ == "__main__":
     inputStream = InputStream()
     
     # Configuring MEGBuffer node
-    MEGB.configure(nb_steps_chosen=5,clf_name= 'classifiers/FAY_meg_CLF [-0.3,-0.1].joblib')  
+    MEGB.configure(nb_steps_chosen=5,clf_name= 'classifiers/FAY_meg_CLF [-0.3,-0.1].joblib',run_nbr=4,subjectId='0991')  
     MEGB.outputs['signals'].configure( transfermode='plaindata')
     MEGB.outputs['triggers'].configure( transfermode='plaindata')
     MEGB.initialize()
