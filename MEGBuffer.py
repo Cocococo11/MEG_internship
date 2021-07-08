@@ -15,9 +15,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import numpy as np
 import pandas as pd
-from predicting_clf import predicting_clf 
-from config import * 
-from psychopy import data
+# from config import * 
+import psychopy as psy
 #from fieldtrip2mne import pick_channels
 
 try:
@@ -38,7 +37,8 @@ _dtype_trigger = [('pos', 'int64'),
     
 class MEGBuffer_Thread(QtCore.QThread):
 
-    def __init__(self, ftc, outputs, parent=None,ch_names=None,sample_rate=None,nb_steps=5,clf_name=None,run_nbr=0,subjectId='default'):
+    def __init__(self, ftc, outputs, parent=None,ch_names=None,sample_rate=None,nb_steps=5,clf_name=None,run_nbr=0,
+    subjectId='default',partType = 'part1',dateStart = ''):
         assert HAVE_FIELDTRIP, "MEGBuffer node depends on the `FieldTrip` package, but it could not be imported. Please make sure to download FieldTrip.py and store it next to this file "
         print('Thread initialized')
         QtCore.QThread.__init__(self)
@@ -52,6 +52,8 @@ class MEGBuffer_Thread(QtCore.QThread):
         self.clf_name = clf_name
         self.run_nbr = run_nbr
         self.subjectId = subjectId
+        self.dateStart = dateStart
+        self.partType = partType
         # Initializing save matrixes
         self.matSaveNbSamples = np.zeros(1)
         self.matSaveData = np.zeros(1)
@@ -94,6 +96,7 @@ class MEGBuffer_Thread(QtCore.QThread):
             with self.lock:
                 if not self.running:
                     break
+                # print("Time before the poll : ",time.time())
                 try:
 
                     globalIndex, useless = self.ftc.poll()
@@ -110,10 +113,12 @@ class MEGBuffer_Thread(QtCore.QThread):
                     continue
                 
                 # Getting the data from the fieldtripclient
+                # print("Time before the getdata : ",time.time())
                 try :
                     data = self.ftc.getData([lastIndex,globalIndex-1])
                 except :
                     time.sleep(5)
+                # print("Time after the getdata megbuffer : ",time.time())
 
                 nsamples= lastIndex
                 # We only want 24 sized packages
@@ -150,9 +155,9 @@ class MEGBuffer_Thread(QtCore.QThread):
                 
                 
                 # print(values_mean_reshaped)
-
+                # print("Time before the predict : ",time.time())
                 prediction[i]=classifier.predict(values_mean_reshaped)[0]
-                
+                # print("Time after the predit : ",time.time())
                 prediction_proba=classifier.predict_proba(values_mean_reshaped)[0]
                 mat_prediction_proba = np.ones(24)*prediction_proba[0]
                 mat_prediction_proba2 = np.ones(24)*prediction_proba[1]
@@ -174,7 +179,9 @@ class MEGBuffer_Thread(QtCore.QThread):
                     toAdd=0
                 self.matDetect=np.append(self.matDetect,toAdd*np.ones(24),axis=0)
                 
+                # Timestamp 1
                 self.outputs['signals'].send(toSend.astype('float32'))
+                # print("Time after the sending of data : ",time.time())
                  
                 
                 lastIndex = globalIndex
@@ -211,14 +218,16 @@ class MEGBuffer_Thread(QtCore.QThread):
         dateT = datetime.now()
         timet = dateT.strftime("%H:%M:%S")
         timeStamp = timet.replace(':', '') 
-        datePsy = data.getDateStr()
+        datePsy = psy.data.getDateStr()
     
         print("Saving data ...")
-        savingFileName = 'saves/save' + self.subjectId +'_' + datePsy +'_'+ str(self.nbSteps) +'steps_run'+str(self.run_nbr)+'.csv'
+        savingFileName = 'saves/Agentivity_BCI_' + self.subjectId +'_' +str(self.run_nbr)+'_'+ str(self.partType)+'_'+ str(self.dateStart) +'_'+ str(self.clf_name)+'_'+str(self.nbSteps) +'steps.csv'
+        if(self.matDetect.shape[0]<self.matSaveData.shape[0]):
+            self.matDetect=np.append(self.matDetect,np.zeros(24),axis=0)
         matSaveData = np.c_[self.matSaveData,self.matSaveNbSamples,self.matDetect,self.matProbas,self.matProbas2,self.matSaveDataTrigger]
         # Use fmt=%d if you don't need to use the values of the data and focus on the triggers
         # Else, remove it because it will make the first column equal to zero (10e-14=> 0)
-        np.savetxt(savingFileName, matSaveData, delimiter=',',fmt='%5.4g')
+        np.savetxt(savingFileName, matSaveData, delimiter=',',fmt='%5.5g')
         
         # # # Analyzing the triggers from a local file (to comment if not in local)
         # raw = read_raw_ctf('data/0989MY_agency_20210415_06.ds', preload=True)
@@ -255,7 +264,7 @@ class MEGBuffer(Node):
     def __init__(self, **kargs):
         Node.__init__(self, **kargs)
 
-    def _configure(self,nb_steps_chosen,clf_name,run_nbr,subjectId):
+    def _configure(self,nb_steps_chosen,clf_name,run_nbr,subjectId,partType,timeStart):
 
         self.hostname = 'localhost'
         # self.hostname ='100.1.1.5'
@@ -268,6 +277,8 @@ class MEGBuffer(Node):
         self.clf_name = clf_name
         self.run_nbr = run_nbr
         self.subjectId = subjectId
+        self.partType = partType
+        self.timeStart = timeStart
 
         self.nb_channel = self.H.nChannels
         self.sample_rate = self.H.fSample
@@ -290,7 +301,8 @@ class MEGBuffer(Node):
         self._thread = MEGBuffer_Thread(self.ftc, outputs=self.outputs,
                                         parent=self, ch_names=self.chan_names,
                                         sample_rate=self.sample_rate,nb_steps=self.nb_steps_chosen,
-                                        clf_name=self.clf_name,run_nbr = self.run_nbr, subjectId = self.subjectId)
+                                        clf_name=self.clf_name,run_nbr = self.run_nbr, subjectId = self.subjectId, 
+                                        partType = self.partType, dateStart = self.timeStart)
         
 
 
