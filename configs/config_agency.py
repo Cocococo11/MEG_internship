@@ -48,7 +48,7 @@ few_trials = True # False for experiment
 # 'S2_without' : 
 #   Used mostly for debugging : no connection to the MEGBuffer will be tried, but you can
 #   access all the functions for the second session
-CHOICE_OF_EXPERIMENT = 'S2_without' # MYST BE S2_WITH IF ONLINE
+CHOICE_OF_EXPERIMENT = 'S2_with' # MYST BE S2_WITH IF ONLINE
 
 # **************END OF PARAMETERS TO CHECK AT THE BEGINNING OF THE SESSION **************
 
