@@ -81,8 +81,9 @@ def plotDict2(dictCounterAnswers,dictCounterAnswersTotal,participant,run_nbr,tim
     plt.legend()
     plt.title("General results")
 
-    mngr = plt.get_current_fig_manager()
-    mngr.window.setGeometry(2000, 100, 1000, 700)
+    if DEBUG == False:
+        mngr = plt.get_current_fig_manager()
+        mngr.window.setGeometry(2000, 100, 1000, 700)
     
     if not os.path.exists('./fig/%s'%participant):
         os.makedirs('./fig/%s'%participant)

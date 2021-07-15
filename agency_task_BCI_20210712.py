@@ -9,6 +9,10 @@
 from configs.basemy_agency import *
 from configs.config_agency import *
 
+###########################################################################################################################
+# ***********************************INITIALIZATION OF ALL THE IMAGES, MODULES, WINDOWS etc *******************************
+###########################################################################################################################
+# Maybe it can be better to put all of this in the configs.config_agency module ?
 
 # Make sure the dir to save images exists
 if not os.path.exists('./fig'):
@@ -30,6 +34,7 @@ for img in files_list:
     if '.jpg' in img:
         if img.startswith('A'):
             images.append(img)
+
 
 # build trials
 conditions = []
@@ -91,13 +96,13 @@ preload_images = [
     visual.ImageStim(win, op.join(home_folder, session_image_choice, img), size=image_size)
     for img in images]
 
-# for the BCI part (part 2)
+# for the BCI part (part 2) : create the question window
 if (CHOICE_OF_EXPERIMENT == 'S2_without' or CHOICE_OF_EXPERIMENT == 'S2_with') and (expInfo['part'] == 'part2' or expInfo['part']== 'part2_blank') :
     if (expInfo['part'] == 'part2'):
         Question = visual.TextStim(win=win, name='Question', text="Avez-vous changé l'image ?",
                                 font='Arial', pos=(0, 0.3), height=0.1, wrapWidth=None,
                                 ori=0, color='black', colorSpace='rgb', opacity=1)
-    else : 
+    else : # If we are in the blank part 2 : participant discovering the buttons and how they work
         Question = visual.TextStim(win=win, name='Question', 
                                 text="Avez-vous changé l'image ? \n \n  Utilisez les boutons du haut pour vous déplacer d'un côté à l'autre \n et celui de gauche pour valider !    ",
                                 font='Arial', pos=(0, 0.5   ), height=0.1, wrapWidth=None,
@@ -111,52 +116,25 @@ if (CHOICE_OF_EXPERIMENT == 'S2_without' or CHOICE_OF_EXPERIMENT == 'S2_with') a
     AnswerNoButWanted = visual.TextStim(win=win, name='AnswerNoButWanted', text='ORDI AVANT VOUS',
                                font='Arial', pos=(0, -0.1), height=0.06, wrapWidth=None,
                                ori=0, color='black', colorSpace='rgb', opacity=1)
-
-# Create some handy timers
-imageClock = core.Clock()
-blankClock = core.Clock()
-longBreackClock = core.Clock()
-shortBreackClock = core.Clock()
-blankBeforeQuestionClock = core.Clock() # for the BCI part
-questionClock = core.Clock() # for the BCI part
-globalClock = core.Clock()  # to track the time since experiment started
-globalClock.reset()  # clock
-
-# Create the parameters of the gamma function
-k_shape = 3
-theta_scale = 1
-
-# For part 1
-# Count number of button press and number of random changes
-button_presses = 0
-random_changes = 0
-early_button_presses_after_computer = 0
-early_button_presses_after_human = 0
-
-# Button presses with resetting count for the part 1 plots
-button_presses_bloc = 0
-random_changes_bloc = 0
-early_button_presses_after_computer_bloc = 0
-early_button_presses_after_human_bloc = 0
-
-# Handy variable to know the previous trigger
-previousTrigger = ''
-timeEarlyBTNPress = 0 # Variable that stores the time when the button was pressed after the image change triggered by the clf
-is_there_an_early = 0 # Variable that stores if there was an early button press or not
-bloc_nb = 0 # Keeping track of the bloc number we are in (how many short breaks have passed)
-threshold600 = 0 # did we reach 600 trials in each category?
-
 print('\n')
 
+###########################################################################################################################
+# *************************** END OF INITIALIZATION OF ALL THE IMAGES, MODULES, WINDOWS etc *******************************
+###########################################################################################################################
+
+
+# Starting the MEGBuffer, the thread associated and the pull of data from the MEG
 
 if CHOICE_OF_EXPERIMENT == 'S2_with':
-    #Loading the MEGBuffer node
+    # Loading the MEGBuffer node
+    
     MEGB =  MEGBuffer()
     inputStream = InputStream()
     nbSteps_chosen = expInfo['nbSteps']
     clfname = expInfo['classifier']
     partTypeChosen = expInfo['part']
     timeBeforeStart = data.getDateStr()
+    # Configuring with all the parameters from the information window
     MEGB.configure(nb_steps_chosen =nbSteps_chosen,clf_name =clfname,run_nbr = run_nbr,subjectId = participant ,partType = partTypeChosen, timeStart = timeBeforeStart,MEGsave = MEGsave)
 
     MEGB.outputs['signals'].configure( transfermode='plaindata')
@@ -164,17 +142,21 @@ if CHOICE_OF_EXPERIMENT == 'S2_with':
     MEGB.initialize()
 
     inputStream.connect(MEGB.outputs['signals'])
-
+    # Connection it to the InputStream, and starting it
     MEGB.start()
 
 
 # ------Prepare to start Routine "Instructions"-------
+
 continueRoutine = True
 White_screen.setAutoDraw(True)
 Instructions.setAutoDraw(True)
 Pixel.setAutoDraw(True)
 
 # -------Start Routine "Instructions"-------
+# This is where the participant gets told all the basic instructions 
+# That is also when the participant can start the whole experiment
+
 key_from_serial = []
 key_from_serial2 = ''
 win.flip()
@@ -205,10 +187,23 @@ if trigger:
     port.setData(252)
 
 
-# Start the trials
+
+########################################################################################################################
+# **************************************** BEGGINING OF THE EXPERIMENT *************************************************
+########################################################################################################################
+
+
+# Start the trials : this is the loop that will go on until the experiment finishes
 for trial in trials:
 
+
+    # ************************************************************
+    # *************** 1st CONDITION TO TRY ***********************
+    # ************************************************************
+    #
     # ------ Stop the recordings and close everything for S2 part 1 -------
+    # Conditions for stopping and closing everything : has to be the first thing checked for every trial (trial = image change)
+    # We can ignore this part this for now, we want the part 1 to go on forever (and we stop it during a short break with escape)
     if (CHOICE_OF_EXPERIMENT == 'S2_without' or CHOICE_OF_EXPERIMENT == 'S2_with') and expInfo['part'] == 'part1' and \
        (trials.thisN % nb_trials_before_long_break) == 0 and trials.thisN != 0:
 
@@ -256,8 +251,9 @@ for trial in trials:
 
 
         plt.savefig('fig/' + str(participant) + '_' + str(nbSteps_chosen)+'steps_run'+str(run_nbr)+'_'+expInfo['date']+'_megsave'+str(MEGsave))
-        mngr = plt.get_current_fig_manager()
-        mngr.window.setGeometry(2000, 100, 1000, 700)
+        if DEBUG == False:
+            mngr = plt.get_current_fig_manager()
+            mngr.window.setGeometry(2000, 100, 1000, 700)
         plt.show()
 
         time.sleep(5)
@@ -270,8 +266,13 @@ for trial in trials:
         win.close()
         core.quit()
 
-
+    # ************************************************************
+    # *************** 2nd CONDITION TO TRY ***********************
+    # ************************************************************
+    #
     # ------Condition for Long Break-------
+    # Happens after a certain number of trials : check the variable nb_trials_before_long_break
+    # Print the current stats of the run, and send a trigger to start another recording if it's needed at the MEG
     if (CHOICE_OF_EXPERIMENT == 'S1_random' or expInfo['part'] == 'part2') and \
        ((trials.thisN % nb_trials_before_long_break) == 0 and trials.thisN != 0 and trials.thisN < max1_trials) or \
        (button_presses >= max1_trials/2 and random_changes >= max1_trials/2 and threshold600 == 0) or \
@@ -334,7 +335,17 @@ for trial in trials:
 
     event.clearEvents(eventType='keyboard')
 
+
+    # ************************************************************
+    # *************** 3rd CONDITION TO TRY ***********************
+    # ************************************************************
+    #
     # ------Condition for Short Break-------
+    # This is the short break that happens both in part 1 or part 2
+    # For part 1 : it allows us to look at the figure generated and potentially adjust the classifier parameters
+    # For part 2 : it allows us to change the MEGsave file number if needed (for the part 2, we loop until we manually
+    # leave the experiment, and since the meg saves are only 7 minutes long, for better file's saving names, we want to make
+    # sure we use the right meg save number if the current run is longer than 7 minutes)
     if (trials.thisN % nb_trials_before_short_break) == 0 and trials.thisN != 0:
 
         # ------Prepare to start Routine "Short Break"-------
@@ -369,20 +380,23 @@ for trial in trials:
             bloc_nb = int(trials.thisN/nb_trials_before_short_break)
             if expInfo['part'] == 'part2': # max(dictCounterAnswers.values())>0 :
                 # Show the windows to potentially change the MEGsave number :
-                
+                print('here')
                 isLongBreak = ((trials.thisN+1 % nb_trials_before_long_break) == 0)
                 if(isLongBreak):
                     plotDict2(dictCounterAnswers ,dictCounterAnswersTotal,participant,run_nbr,timeBeforeStart,bloc_nb,MEGsave )
                     dictCounterAnswers = dict.fromkeys(dictCounterAnswers, 0) # Resetting the temporary dict to 0
                 else : 
+                    print('there')
                     plotDict2(dictCounterAnswers,dictCounterAnswersTotal,participant,run_nbr,timeBeforeStart,bloc_nb, MEGsave)
                     dictCounterAnswers = dict.fromkeys(dictCounterAnswers, 0)
 
                 # print(yaml.dump(dictCounterAnswers, sort_keys=False, default_flow_style=False))
             elif expInfo['part'] == 'part1':
+                print("and everywhere")
 
-                mngr = plt.get_current_fig_manager()
-                mngr.window.setGeometry(2000, 100, 1000, 700)       
+                if DEBUG == False:
+                    mngr = plt.get_current_fig_manager()
+                    mngr.window.setGeometry(2000, 100, 1000, 700)       
 
                 # fig = plt.figure()  
                 # timer = fig.canvas.new_timer(interval = 1000)
