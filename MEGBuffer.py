@@ -38,7 +38,7 @@ _dtype_trigger = [('pos', 'int64'),
 class MEGBuffer_Thread(QtCore.QThread):
 
     def __init__(self, ftc, outputs, parent=None,ch_names=None,sample_rate=None,nb_steps=5,clf_name=None,run_nbr=0,
-    subjectId='default',partType = 'part1',dateStart = ''):
+    subjectId='default',partType = 'part1',dateStart = '',MEGsave = ''):
         assert HAVE_FIELDTRIP, "MEGBuffer node depends on the `FieldTrip` package, but it could not be imported. Please make sure to download FieldTrip.py and store it next to this file "
         print('Thread initialized')
         QtCore.QThread.__init__(self)
@@ -54,6 +54,7 @@ class MEGBuffer_Thread(QtCore.QThread):
         self.subjectId = subjectId
         self.dateStart = dateStart
         self.partType = partType
+        self.MEGsave = MEGsave
         # Initializing save matrixes
         self.matSaveNbSamples = np.zeros(1)
         self.matSaveData = np.zeros(1)
@@ -84,9 +85,11 @@ class MEGBuffer_Thread(QtCore.QThread):
         clfName = self.clf_name
         classifier = load('./classifiers/meg/'+clfName) # Cross clf / data
         lastIndex = None
+        self.probaSample = 8
         self.nbSteps = int(self.nb_steps_chosen)
         print('chosen classifier : ' + clfName + 'with nb of step : ' + str(self.nbSteps))
         prediction = list(2*(np.ones(self.nbSteps)))
+        predictionProbas = list(2*(np.zeros(self.probaSample)))
         i = 0
         
         with self.lock:
@@ -158,16 +161,32 @@ class MEGBuffer_Thread(QtCore.QThread):
                 # print("Time before the predict : ",time.time())
                 prediction[i]=classifier.predict(values_mean_reshaped)[0]
                 # print("Time after the predit : ",time.time())
+                predictionProbas[i]=classifier.predict_proba(values_mean_reshaped)[0]
                 prediction_proba=classifier.predict_proba(values_mean_reshaped)[0]
-                mat_prediction_proba = np.ones(24)*prediction_proba[0]
-                mat_prediction_proba2 = np.ones(24)*prediction_proba[1]
+                mat_prediction_proba = np.ones(24)*prediction_proba[i,0]
+                mat_prediction_proba2 = np.ones(24)*prediction_proba[i,1]
                 self.matProbas = np.append(self.matProbas,mat_prediction_proba, axis=0)
                 self.matProbas2 = np.append(self.matProbas2,mat_prediction_proba2, axis=0)
                 # print(prediction_proba)
                 
                 
-                if((max(prediction))==0):
-                    #print("Trigger from classifier at the sample no ", extracted_data_plus_indexes[13,274])
+                # # Current : If all of the predictions are equal to detection of motor activity (number of steps method)
+                # if((max(prediction))==0):
+                #     #print("Trigger from classifier at the sample no ", extracted_data_plus_indexes[13,274])
+                #     toSend=np.ones(1)
+                #     # print(prediction_proba)
+
+                #     if(self.matDetect[-1]==50 or self.matDetect[-1]==0.5):
+                #         toAdd=0.5
+                #     else:
+                #         toAdd=50
+                # else:
+                #     toAdd=0
+                # self.matDetect=np.append(self.matDetect,toAdd*np.ones(24),axis=0)
+                
+                # Other option : probability density : 
+                if(sum(predictionProbas > self.probaSample/1.4)):
+                    print('sum prediction proba : %d , probaSample/1.4 : %d'%(sum(predictionProbas),self.probaSample/1.4))
                     toSend=np.ones(1)
                     # print(prediction_proba)
 
@@ -178,7 +197,8 @@ class MEGBuffer_Thread(QtCore.QThread):
                 else:
                     toAdd=0
                 self.matDetect=np.append(self.matDetect,toAdd*np.ones(24),axis=0)
-                
+
+
                 # Timestamp 1
                 self.outputs['signals'].send(toSend.astype('float32'))
                 # print("Time after the sending of data : ",time.time())
@@ -220,8 +240,8 @@ class MEGBuffer_Thread(QtCore.QThread):
         timeStamp = timet.replace(':', '') 
         datePsy = psy.data.getDateStr()
     
-        print("Saving data ...")
-        savingFileName = 'saves/Agentivity_BCI_' + self.subjectId +'_' +str(self.run_nbr)+'_'+ str(self.partType)+'_'+ str(self.dateStart) +'_'+ str(self.clf_name)+'_'+str(self.nbSteps) +'steps.csv'
+        print("Saving data in the MEGBuffer...")
+        savingFileName = 'saves/Agentivity_BCI_' + self.subjectId +'_' +str(self.run_nbr)+'_'+ str(self.partType)+'_'+ str(self.dateStart) +'_'+ str(self.clf_name)+'_'+str(self.nbSteps) +'steps_megsave'+str(self.MEGsave)+'.csv'
         if(self.matDetect.shape[0]<self.matSaveData.shape[0]):
             self.matDetect=np.append(self.matDetect,np.zeros(24),axis=0)
         matSaveData = np.c_[self.matSaveData,self.matSaveNbSamples,self.matDetect,self.matProbas,self.matProbas2,self.matSaveDataTrigger]
@@ -264,7 +284,7 @@ class MEGBuffer(Node):
     def __init__(self, **kargs):
         Node.__init__(self, **kargs)
 
-    def _configure(self,nb_steps_chosen,clf_name,run_nbr,subjectId,partType,timeStart):
+    def _configure(self,nb_steps_chosen,clf_name,run_nbr,subjectId,partType,timeStart,MEGsave):
 
         self.hostname = 'localhost'
         # self.hostname ='100.1.1.5'
@@ -279,6 +299,7 @@ class MEGBuffer(Node):
         self.subjectId = subjectId
         self.partType = partType
         self.timeStart = timeStart
+        self.MEGsave = MEGsave
 
         self.nb_channel = self.H.nChannels
         self.sample_rate = self.H.fSample
@@ -302,7 +323,7 @@ class MEGBuffer(Node):
                                         parent=self, ch_names=self.chan_names,
                                         sample_rate=self.sample_rate,nb_steps=self.nb_steps_chosen,
                                         clf_name=self.clf_name,run_nbr = self.run_nbr, subjectId = self.subjectId, 
-                                        partType = self.partType, dateStart = self.timeStart)
+                                        partType = self.partType, dateStart = self.timeStart,MEGsave = self.MEGsave)
         
 
 
