@@ -344,3 +344,117 @@ timeEarlyBTNPress = 0 # Variable that stores the time when the button was presse
 is_there_an_early = 0 # Variable that stores if there was an early button press or not
 bloc_nb = 0 # Keeping track of the bloc number we are in (how many short breaks have passed)
 threshold600 = 0 # did we reach 600 trials in each category?
+
+
+###########################################################################################################################
+# ***********************************INITIALIZATION OF ALL THE IMAGES, MODULES, WINDOWS etc *******************************
+###########################################################################################################################
+# Maybe it can be better to put all of this in the configs.config_agency module ?
+
+# Make sure the dir to save images exists
+if not os.path.exists('./fig'):
+           os.makedirs('./fig')
+
+# set up the ports and Eyelink
+if serialPort:
+    port_s = serial_port()
+if trigger:
+    port = parallel.ParallelPort(address=addressPortParallel)
+if eyelink:
+    import EyeLink #noqa
+    selfEdf = EyeLink.tracker(window_size[0], window_size[1], edfFileName)
+
+# list all images
+images = list()
+files_list = os.listdir(op.join(home_folder, session_image_choice))
+for img in files_list:
+    if '.jpg' in img:
+        if img.startswith('A'):
+            images.append(img)
+
+
+# build trials
+conditions = []
+for trial in range(len(images)):
+    conditions.append({'image_nb': trial})
+trials = data.TrialHandler(trialList=conditions, nReps=1, method='random')
+
+# An ExperimentHandler isn't essential but helps with data saving
+thisExp = data.ExperimentHandler(dataFileName=filename)
+thisExp.addLoop(trials)
+
+# save a log file for detail verbose info
+logFile = logging.LogFile(filename+'.log', level=logging.EXP)
+logging.console.setLevel(logging.WARNING)  # this outputs to the screen
+
+# Setup the Window
+win = visual.Window(
+    size=window_size, fullscr=fullscr, screen=0,
+    allowGUI=False, allowStencil=False,
+    monitor='testMonitor', color=[0, 0, 0], colorSpace='rgb',
+    blendMode='avg', useFBO=True)
+
+# Setup the elements to display
+White_screen = visual.Rect(
+    win=win, name='White_screen', units='cm',
+    width=(2000, 2000)[0], height=(2000, 2000)[1],
+    ori=0, pos=(0, 0),
+    lineWidth=1, lineColor=[1, 1, 1], lineColorSpace='rgb',
+    fillColor=[0.5, 0.5, 0.5], fillColorSpace='rgb',
+    opacity=1, interpolate=True)
+Instructions = visual.TextStim(
+    win=win, name='Instructions',
+    text='''Une image va apparaitre à l'écran.
+            \nPrenez quelques secondes pour l'observer sans bouger les yeux de la croix centrale.
+            \nClignez les yeux le moins possible.
+            \nPour démarrer, appuyez sur le bouton de droite.''',
+    font='Arial',
+    pos=(0, 0), height=0.1, wrapWidth=None, ori=0,
+    color='black', colorSpace='rgb', opacity=1)
+Cross = visual.ShapeStim(
+    win=win, name='Cross', vertices='cross', units='cm',
+    size=(0.8, 0.8),
+    ori=0, pos=(0, 0),
+    lineWidth=0.5, lineColor=[1, 0, 0], lineColorSpace='rgb',
+    fillColor=[1, 0, 0], fillColorSpace='rgb',
+    opacity=1, interpolate=True)
+Pixel = visual.Rect(
+    win=win, name='topleftpixel', units='pix',
+    pos=(-window_size[1], window_size[1]/2),
+    size=(window_size[0]*2/5, 200),
+    fillColor=[-1, -1, -1],
+    lineColor=[-1, -1, -1])
+
+# Initialize components for Routine "image"
+fname = op.join(home_folder, session_image_choice, images[1])
+Image = visual.ImageStim(
+    win, image=fname, pos=(0, 0), size=image_size)
+preload_images = [
+    visual.ImageStim(win, op.join(home_folder, session_image_choice, img), size=image_size)
+    for img in images]
+
+# for the BCI part (part 2) : create the question window
+if (CHOICE_OF_EXPERIMENT == 'S2_without' or CHOICE_OF_EXPERIMENT == 'S2_with') and (expInfo['part'] == 'part2' or expInfo['part']== 'part2_blank') :
+    if (expInfo['part'] == 'part2'):
+        Question = visual.TextStim(win=win, name='Question', text="Avez-vous changé l'image ?",
+                                font='Arial', pos=(0, 0.3), height=0.1, wrapWidth=None,
+                                ori=0, color='black', colorSpace='rgb', opacity=1)
+    else : # If we are in the blank part 2 : participant discovering the buttons and how they work
+        Question = visual.TextStim(win=win, name='Question', 
+                                text="Avez-vous changé l'image ? \n \n  Utilisez les boutons du haut pour vous déplacer d'un côté à l'autre \n et celui de gauche pour valider !    ",
+                                font='Arial', pos=(0, 0.5   ), height=0.1, wrapWidth=None,
+                                ori=0, color='black', colorSpace='rgb', opacity=1)
+    AnswerYes = visual.TextStim(win=win, name='AnswerYes', text='VOUS',
+                                font='Arial', pos=(0, -0.1), height=0.06, wrapWidth=None,
+                                ori=0, color='black', colorSpace='rgb', opacity=1)
+    AnswerNo = visual.TextStim(win=win, name='AnswerNo', text='ORDI',
+                               font='Arial', pos=(0, -0.1), height=0.06, wrapWidth=None,
+                               ori=0, color='black', colorSpace='rgb', opacity=1)
+    AnswerNoButWanted = visual.TextStim(win=win, name='AnswerNoButWanted', text='ORDI AVANT VOUS',
+                               font='Arial', pos=(0, -0.1), height=0.06, wrapWidth=None,
+                               ori=0, color='black', colorSpace='rgb', opacity=1)
+print('\n')
+
+###########################################################################################################################
+# *************************** END OF INITIALIZATION OF ALL THE IMAGES, MODULES, WINDOWS etc *******************************
+###########################################################################################################################
