@@ -15,8 +15,8 @@ elif computer == 'fayed':
     path_analyzed_data = '/Users/Fayed/Desktop/StageM2/scripts/decoding/MEG/MEG_analyzed_data'
     path_saving = '/Users/Fayed/Desktop/StageM2/scripts/decoding/MEG/MEG_save' #where you want to save some file, like clf, trigger etc.
 elif computer == 'corentin':
-    path_data = '/Users/Coco'
-    path_analyzed_data = '/Users/Coco'
+    path_data = '/Users/Fayed/Desktop/StageM2/scripts/decoding/MEG/MEG_data'
+    path_analyzed_data = '/Users/Fayed/Desktop/StageM2/scripts/decoding/MEG/MEG_analyzed_data'
     path_saving = '/Users/Coco'
 
 # **** sessionType for scripts agency BCI *****
@@ -25,12 +25,12 @@ sessionType = 'session2_part2'
 
 # **** subjects ************************************************************
 session_nb = 1
-# subjects_id = ['MAR', 'SAL', 'FAY', '0986', '0987', '0989', '0990', '0991', '0992', '0993', '0994', '0995', '0996'] #all session 1
-subjects_id = ['0986', '0987', '0989', '0990', '0991', '0992', '0993', '0994', '0995', '0996'] #subject without pilot
+subjects_id = ['MAR', 'SAL', 'FAY', '0986', '0987', '0989', '0990', '0991', '0992', '0993', '0994', '0995', '0996'] #all session 1
+# subjects_id = ['0986', '0987', '0989', '0990', '0991', '0992', '0993', '0994', '0995', '0996'] #subject without pilot
 # subjects_id = ['0986', '0987', '0989', '0990', '0991', '0992', '0993', '0994'] #subject memoire
 
 # session_nb = 2
-subjects_id = ['MAR2', 'SAL2', 'FAY2', '1059', '1060', '1061', '1062'] #all session 2
+# subjects_id = ['MAR2', 'SAL2', 'FAY2', '1059', '1060', '1061', '1062'] #all session 2 : these data are filtred
 
 #**** group of subject by session ****
 # session_nb = 1 
@@ -82,8 +82,8 @@ subjects_id = ['MAR2', 'SAL2', 'FAY2', '1059', '1060', '1061', '1062'] #all sess
 
 # 24 juin
 # session_nb = 2
-subjects_id = ['1059'] #RJ emg can't analyse yet
-subjects_id = ['1060'] #AEG
+# subjects_id = ['1059'] #RJ emg can't analyse yet
+# subjects_id = ['1060'] #AEG
 # subjects_id = ['1061'] #MA
 
 #08 juillet
@@ -93,18 +93,17 @@ subjects_id = ['1060'] #AEG
 
 # **** sessions ************************************************************
 session_nb = 1
-# session_subject = [['MAR20201210_session1'], ['SAL20201210_session1'], ['FA20210218_session1'],['RJ20210318_session1'], ['AEG20210318_session1'], ['MY20210415_session1'],
-#                     ['TZ20210415_session1'], ['MA20210415_session1'], ['ES20210429_session1'], ['DAA20210429_session1'], ['CC20210429_session1'], ['DC20210429_session1'], ['LB20210520_session1']] #all session 1
+session_subject = [['MAR20201210_session1'], ['SAL20201210_session1'], ['FA20210218_session1'],['RJ20210318_session1'], ['AEG20210318_session1'], ['MY20210415_session1'],
+                    ['TZ20210415_session1'], ['MA20210415_session1'], ['ES20210429_session1'], ['DAA20210429_session1'], ['CC20210429_session1'], ['DC20210429_session1'], ['LB20210520_session1']] #all session 1
 
-session_subject = [['RJ20210318_session1'], ['AEG20210318_session1'], ['MY20210415_session1'], ['TZ20210415_session1'], ['MA20210415_session1'],
-                    ['ES20210429_session1'], ['DAA20210429_session1'], ['CC20210429_session1'], ['DC20210429_session1'], ['LB20210520_session1']] #subject without pilot
+# session_subject = [['RJ20210318_session1'], ['AEG20210318_session1'], ['MY20210415_session1'], ['TZ20210415_session1'], ['MA20210415_session1'],
+#                     ['ES20210429_session1'], ['DAA20210429_session1'], ['CC20210429_session1'], ['DC20210429_session1'], ['LB20210520_session1']] #subject without pilot
 
 # session_subject = [['RJ20210318_session1'], ['AEG20210318_session1'], ['MY20210415_session1'], ['TZ20210415_session1'], ['MA20210415_session1'],
 #                     ['ES20210429_session1'], ['DAA20210429_session1'], ['CC20210429_session1']] #subject memoire 
 
-
-session_nb = 2
-session_subject = [['MAR20210603_session2'], ['SAL20210708_session2'], ['FA20210603_session2'],  ['RJ20210624_session2'], ['AEG20210624_session2'], ['MA20210624_session2'], ['MY20210708_session2']] #all session 2
+# session_nb = 2
+# session_subject = [['MAR20210603_session2'], ['SAL20210708_session2'], ['FA20210603_session2'],  ['RJ20210624_session2'], ['AEG20210624_session2'], ['MA20210624_session2'], ['MY20210708_session2']] #all session 2
 
 #**** group of subject by session ****
 # session_nb = 1
@@ -152,8 +151,8 @@ session_subject = [['MAR20210603_session2'], ['SAL20210708_session2'], ['FA20210
 # session_subject = [['FA20210603_session2']]
 
 #24 juin
-session_subject = [['RJ20210624_session2']]
-session_subject = [['AEG20210624_session2']]
+# session_subject = [['RJ20210624_session2']]
+# session_subject = [['AEG20210624_session2']]
 # session_subject = [['MA20210624_session2']]
 
 #08 juillet
