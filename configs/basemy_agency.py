@@ -21,7 +21,6 @@ from configs.config_agency import *
 
 # Imports for the pyacq node
 from pyacq.core.stream import InputStream
-from MEGBuffer import MEGBuffer
 from joblib import load
 
 
